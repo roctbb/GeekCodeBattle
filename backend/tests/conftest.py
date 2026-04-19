@@ -14,6 +14,7 @@ def app():
     os.environ['AUTO_CREATE_DB'] = 'true'
     os.environ['GEEKPASTE_CALLBACK_REQUIRE_AUTH'] = 'false'
     os.environ['MATCHMAKING_DELAY_SECONDS'] = '1'
+    os.environ['CELERY_ENABLED'] = 'false'
     os.environ['ROUND_TIMEOUT_BACKGROUND_ENABLED'] = 'false'
     os.environ['ENABLE_DEV_LOGIN'] = 'true'
 

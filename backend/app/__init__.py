@@ -4,15 +4,13 @@ from flask import session, request
 from flask_socketio import join_room
 
 from .config import Config
+from .celery_app import init_celery
 from .extensions import db, migrate, socketio
 from .services import presence_service, presence_runtime, realtime_service, battles_service
 
 
 _socket_user_by_sid = {}
 _socket_count_by_user = {}
-_round_timeout_worker_started = False
-
-
 def _mark_user_online(user_id):
     state = presence_service.set_user_online(user_id)
     if state.get("changed"):
@@ -44,6 +42,7 @@ def create_app() -> Flask:
     db.init_app(app)
     migrate.init_app(app, db)
     socketio.init_app(app)
+    init_celery(app)
     from . import models  # noqa: F401
 
     from .routes.auth import auth_bp
@@ -62,15 +61,6 @@ def create_app() -> Flask:
     app.register_blueprint(matches_bp)
     app.register_blueprint(integrations_bp)
 
-    def _round_timeout_worker():
-        poll_seconds = max(1, int(app.config.get("ROUND_TIMEOUT_POLL_SECONDS", 2)))
-        while True:
-            socketio.sleep(poll_seconds)
-            with app.app_context():
-                running_battles = battles_service.list_running_battles()
-                for battle in running_battles:
-                    battles_service.tick_timeouts(battle)
-
     def _delayed_tick_battles(battle_ids):
         delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
         socketio.sleep(delay_seconds)
@@ -80,6 +70,17 @@ def create_app() -> Flask:
                 if not battle:
                     continue
                 battles_service.tick_timeouts(battle)
+
+    def _enqueue_delayed_tick_battles(battle_ids):
+        if not battle_ids:
+            return
+        if app.config.get("CELERY_ENABLED", True):
+            from .celery_tasks import delayed_tick_battles_task
+
+            delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
+            delayed_tick_battles_task.apply_async(args=[battle_ids], countdown=delay_seconds)
+            return
+        socketio.start_background_task(_delayed_tick_battles, battle_ids)
 
     @socketio.on("subscribe")
     def handle_subscribe(data):
@@ -134,18 +135,13 @@ def create_app() -> Flask:
             state = _mark_user_offline(user_key)
             battle_ids = state.get("battle_ids") if state else []
             if battle_ids:
-                socketio.start_background_task(_delayed_tick_battles, battle_ids)
+                _enqueue_delayed_tick_battles(battle_ids)
         else:
             _socket_count_by_user[user_key] = next_count
 
     @app.get("/api/v1/health")
     def health():
         return jsonify({"status": "ok"})
-
-    global _round_timeout_worker_started
-    if app.config.get("ROUND_TIMEOUT_BACKGROUND_ENABLED", True) and not _round_timeout_worker_started:
-        socketio.start_background_task(_round_timeout_worker)
-        _round_timeout_worker_started = True
 
     if app.config.get("AUTO_CREATE_DB", False):
         with app.app_context():

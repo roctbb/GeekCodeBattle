@@ -37,6 +37,7 @@ docker compose up -d --build
 Особенности production compose:
 - frontend — статическая сборка в Nginx
 - backend — `gunicorn + eventlet`
+- фоновые задачи — `celery_worker + celery_beat`
 - миграции (`flask db upgrade`) выполняются на старте backend контейнера
 - dev-сервера Vite нет
 
@@ -75,7 +76,8 @@ python3 -m pytest -q
 - `MATCHMAKING_DELAY_SECONDS` — задержка перед стартом раунда, чтобы улучшить подбор
 - `ROUND_DURATION_MINUTES` — лимит раунда
 - `DISCONNECT_GRACE_SECONDS` — grace-период при полном дисконнекте комнаты
-- `ROUND_TIMEOUT_BACKGROUND_ENABLED` — включить фоновую проверку таймаутов раундов
-- `ROUND_TIMEOUT_POLL_SECONDS` — период фоновой проверки таймаутов
+- `ROUND_TIMEOUT_POLL_SECONDS` — период celery beat-проверки таймаутов
+- `CELERY_ENABLED` — включение celery-задач
+- `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` — broker/backend celery
 - `GEEKPASTE_CALLBACK_*` — параметры верификации callback
 - `AUTO_CREATE_DB` — автосоздание таблиц на startup (рекомендуется `false`, использовать `true` только для временных локальных экспериментов без Alembic)

@@ -32,15 +32,76 @@ services:
       GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
       GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
       GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      CELERY_ENABLED: "true"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
       ROUND_DURATION_MINUTES: "20"
       DISCONNECT_GRACE_SECONDS: "300"
       MATCHMAKING_DELAY_SECONDS: "10"
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "true"
+      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
       ROUND_TIMEOUT_POLL_SECONDS: "2"
       AUTO_CREATE_DB: "false"
       FLASK_APP: manage:app
     ports:
       - "8086:8086"
+
+  celery_worker:
+    build:
+      context: ./backend
+    depends_on:
+      - db
+      - redis
+    command: ["python", "celery_worker.py"]
+    environment:
+      SECRET_KEY: change-me
+      CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: change-me
+      GEEKCLASS_HOST: https://codingprojects.ru
+      GEEKPASTE_API_URL: http://paste:8084/api/external/check
+      GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
+      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
+      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
+      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      CELERY_ENABLED: "true"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      ROUND_DURATION_MINUTES: "20"
+      DISCONNECT_GRACE_SECONDS: "300"
+      MATCHMAKING_DELAY_SECONDS: "10"
+      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
+      ROUND_TIMEOUT_POLL_SECONDS: "2"
+      AUTO_CREATE_DB: "false"
+      FLASK_APP: manage:app
+
+  celery_beat:
+    build:
+      context: ./backend
+    depends_on:
+      - db
+      - redis
+    command: ["python", "celery_beat.py"]
+    environment:
+      SECRET_KEY: change-me
+      CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
+      REDIS_URL: redis://redis:6379/0
+      JWT_SECRET: change-me
+      GEEKCLASS_HOST: https://codingprojects.ru
+      GEEKPASTE_API_URL: http://paste:8084/api/external/check
+      GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
+      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
+      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
+      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      CELERY_ENABLED: "true"
+      CELERY_BROKER_URL: "redis://redis:6379/0"
+      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
+      ROUND_DURATION_MINUTES: "20"
+      DISCONNECT_GRACE_SECONDS: "300"
+      MATCHMAKING_DELAY_SECONDS: "10"
+      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
+      ROUND_TIMEOUT_POLL_SECONDS: "2"
+      AUTO_CREATE_DB: "false"
+      FLASK_APP: manage:app
 
   frontend:
     image: node:22
