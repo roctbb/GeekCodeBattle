@@ -1,0 +1,1831 @@
+[
+  {
+    "title": "Сумма двух чисел",
+    "statement_md": "Даны два целых числа a и b. Выведите их сумму.\n\nВход: одна строка с двумя целыми числами.\nВыход: одно целое число.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "2 3",
+          "expected": "5"
+        },
+        {
+          "input": "-10 4",
+          "expected": "-6"
+        },
+        {
+          "input": "0 0",
+          "expected": "0"
+        },
+        {
+          "input": "999999 1",
+          "expected": "1000000"
+        },
+        {
+          "input": "-7 -8",
+          "expected": "-15"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Периметр прямоугольника",
+    "statement_md": "Даны стороны прямоугольника a и b. Выведите его периметр.\n\nВход: a b.\nВыход: 2*(a+b).",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "3 4",
+          "expected": "14"
+        },
+        {
+          "input": "10 10",
+          "expected": "40"
+        },
+        {
+          "input": "1 7",
+          "expected": "16"
+        },
+        {
+          "input": "25 40",
+          "expected": "130"
+        },
+        {
+          "input": "100 1",
+          "expected": "202"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Четное или нечетное",
+    "statement_md": "Дано целое число n. Выведите EVEN, если число четное, иначе ODD.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "8",
+          "expected": "EVEN"
+        },
+        {
+          "input": "3",
+          "expected": "ODD"
+        },
+        {
+          "input": "0",
+          "expected": "EVEN"
+        },
+        {
+          "input": "-11",
+          "expected": "ODD"
+        },
+        {
+          "input": "-100",
+          "expected": "EVEN"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Максимум из трех",
+    "statement_md": "Даны три целых числа. Выведите максимальное.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1 2 3",
+          "expected": "3"
+        },
+        {
+          "input": "9 4 5",
+          "expected": "9"
+        },
+        {
+          "input": "-1 -7 -3",
+          "expected": "-1"
+        },
+        {
+          "input": "5 5 5",
+          "expected": "5"
+        },
+        {
+          "input": "100 1000 999",
+          "expected": "1000"
+        }
+      ]
+    }
+  },
+  {
+    "title": "N-й член арифметической прогрессии",
+    "statement_md": "Даны a1, d и n. Найдите n-й член арифметической прогрессии: a_n = a1 + (n-1)*d.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1 2 5",
+          "expected": "9"
+        },
+        {
+          "input": "10 -3 4",
+          "expected": "1"
+        },
+        {
+          "input": "7 0 100",
+          "expected": "7"
+        },
+        {
+          "input": "-5 5 3",
+          "expected": "5"
+        },
+        {
+          "input": "100 10 1",
+          "expected": "100"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сумма от 1 до N",
+    "statement_md": "Дано целое N (N >= 1). Выведите сумму чисел от 1 до N.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1",
+          "expected": "1"
+        },
+        {
+          "input": "5",
+          "expected": "15"
+        },
+        {
+          "input": "10",
+          "expected": "55"
+        },
+        {
+          "input": "100",
+          "expected": "5050"
+        },
+        {
+          "input": "1000",
+          "expected": "500500"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество цифр",
+    "statement_md": "Дано целое число n. Выведите количество цифр в его десятичной записи (без знака).",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "0",
+          "expected": "1"
+        },
+        {
+          "input": "7",
+          "expected": "1"
+        },
+        {
+          "input": "12345",
+          "expected": "5"
+        },
+        {
+          "input": "-999",
+          "expected": "3"
+        },
+        {
+          "input": "1000000",
+          "expected": "7"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Переворот числа",
+    "statement_md": "Дано целое неотрицательное число n. Выведите число, записанное в обратном порядке.\n\nНапример: 120 -> 21.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "120",
+          "expected": "21"
+        },
+        {
+          "input": "5",
+          "expected": "5"
+        },
+        {
+          "input": "1000",
+          "expected": "1"
+        },
+        {
+          "input": "987654",
+          "expected": "456789"
+        },
+        {
+          "input": "0",
+          "expected": "0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Секунды в часы минуты секунды",
+    "statement_md": "Дано число секунд s (0 <= s < 86400). Выведите три числа: часы, минуты, секунды.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "0",
+          "expected": "0 0 0"
+        },
+        {
+          "input": "59",
+          "expected": "0 0 59"
+        },
+        {
+          "input": "60",
+          "expected": "0 1 0"
+        },
+        {
+          "input": "3661",
+          "expected": "1 1 1"
+        },
+        {
+          "input": "86399",
+          "expected": "23 59 59"
+        }
+      ]
+    }
+  },
+  {
+    "title": "FizzBuzz",
+    "statement_md": "Дано число n. Для чисел от 1 до n выведите:\n- FizzBuzz, если число делится на 3 и 5\n- Fizz, если делится только на 3\n- Buzz, если делится только на 5\n- само число иначе\n\nПечатать по одному значению в строке.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1",
+          "expected": "1"
+        },
+        {
+          "input": "5",
+          "expected": "1\n2\nFizz\n4\nBuzz"
+        },
+        {
+          "input": "15",
+          "expected": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz\n11\nFizz\n13\n14\nFizzBuzz"
+        },
+        {
+          "input": "3",
+          "expected": "1\n2\nFizz"
+        },
+        {
+          "input": "10",
+          "expected": "1\n2\nFizz\n4\nBuzz\nFizz\n7\n8\nFizz\nBuzz"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сумма цифр",
+    "statement_md": "Дано целое число n. Выведите сумму его цифр (без учета знака).",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "123",
+          "expected": "6"
+        },
+        {
+          "input": "0",
+          "expected": "0"
+        },
+        {
+          "input": "-909",
+          "expected": "18"
+        },
+        {
+          "input": "100000",
+          "expected": "1"
+        },
+        {
+          "input": "99999",
+          "expected": "45"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Палиндром-строка",
+    "statement_md": "Дана строка из маленьких латинских букв без пробелов. Выведите YES, если строка палиндром, иначе NO.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "level",
+          "expected": "YES"
+        },
+        {
+          "input": "python",
+          "expected": "NO"
+        },
+        {
+          "input": "a",
+          "expected": "YES"
+        },
+        {
+          "input": "abba",
+          "expected": "YES"
+        },
+        {
+          "input": "abca",
+          "expected": "NO"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Число Фибоначчи",
+    "statement_md": "Дано n (0 <= n <= 40). Выведите n-е число Фибоначчи, где F0=0, F1=1.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "0",
+          "expected": "0"
+        },
+        {
+          "input": "1",
+          "expected": "1"
+        },
+        {
+          "input": "7",
+          "expected": "13"
+        },
+        {
+          "input": "10",
+          "expected": "55"
+        },
+        {
+          "input": "20",
+          "expected": "6765"
+        },
+        {
+          "input": "40",
+          "expected": "102334155"
+        }
+      ]
+    }
+  },
+  {
+    "title": "НОД двух чисел",
+    "statement_md": "Даны два целых числа a и b (не оба нули). Выведите их наибольший общий делитель.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "18 24",
+          "expected": "6"
+        },
+        {
+          "input": "7 13",
+          "expected": "1"
+        },
+        {
+          "input": "100 10",
+          "expected": "10"
+        },
+        {
+          "input": "0 9",
+          "expected": "9"
+        },
+        {
+          "input": "-54 24",
+          "expected": "6"
+        },
+        {
+          "input": "270 192",
+          "expected": "6"
+        }
+      ]
+    }
+  },
+  {
+    "title": "НОК двух чисел",
+    "statement_md": "Даны два целых числа a и b (не оба нули). Выведите их наименьшее общее кратное.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "4 6",
+          "expected": "12"
+        },
+        {
+          "input": "21 6",
+          "expected": "42"
+        },
+        {
+          "input": "10 10",
+          "expected": "10"
+        },
+        {
+          "input": "0 9",
+          "expected": "0"
+        },
+        {
+          "input": "8 14",
+          "expected": "56"
+        },
+        {
+          "input": "13 17",
+          "expected": "221"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Подсчет гласных",
+    "statement_md": "Дана одна строка s (может быть пустой), состоящая из маленьких латинских букв и пробелов. Подсчитайте количество символов из множества {a, e, i, o, u}.\n\nФормат ввода: одна строка s.\nФормат вывода: одно целое число — количество гласных.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1200,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "hello world",
+          "expected": "3"
+        },
+        {
+          "input": "rhythm",
+          "expected": "0"
+        },
+        {
+          "input": "aeiou",
+          "expected": "5"
+        },
+        {
+          "input": "programming",
+          "expected": "3"
+        },
+        {
+          "input": "a e i o u",
+          "expected": "5"
+        },
+        {
+          "input": "",
+          "expected": "0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Уникальные по порядку",
+    "statement_md": "Дано n и n целых чисел. Выведите элементы в порядке первого появления, убрав повторы.\n\nФормат:\nПервая строка: n\nВторая строка: n чисел\nВыход: последовательность через пробел.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "7\n1 2 1 3 2 4 4",
+          "expected": "1 2 3 4"
+        },
+        {
+          "input": "5\n5 5 5 5 5",
+          "expected": "5"
+        },
+        {
+          "input": "6\n1 2 3 4 5 6",
+          "expected": "1 2 3 4 5 6"
+        },
+        {
+          "input": "1\n42",
+          "expected": "42"
+        },
+        {
+          "input": "8\n0 -1 0 -1 2 2 3 0",
+          "expected": "0 -1 2 3"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сортировка трех чисел",
+    "statement_md": "Даны три целых числа. Выведите их по возрастанию через пробел.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "3 1 2",
+          "expected": "1 2 3"
+        },
+        {
+          "input": "-1 -5 0",
+          "expected": "-5 -1 0"
+        },
+        {
+          "input": "7 7 1",
+          "expected": "1 7 7"
+        },
+        {
+          "input": "9 8 7",
+          "expected": "7 8 9"
+        },
+        {
+          "input": "0 0 0",
+          "expected": "0 0 0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Частота слова",
+    "statement_md": "Даны две строки: text и word. Подсчитайте, сколько раз word встречается в text как отдельное слово (без учета регистра). Слова в text разделены пробелами.\n\nФормат ввода:\nПервая строка: text (может быть пустой).\nВторая строка: word.\nФормат вывода: одно целое число.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "cat dog cat CAT\ncat",
+          "expected": "3"
+        },
+        {
+          "input": "one two three\nfour",
+          "expected": "0"
+        },
+        {
+          "input": "hi hi hi\nhi",
+          "expected": "3"
+        },
+        {
+          "input": "a aa aaa a\na",
+          "expected": "2"
+        },
+        {
+          "input": "\nword",
+          "expected": "0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Шифр Цезаря (маленькие буквы)",
+    "statement_md": "Даны целое неотрицательное число k и строка s из маленьких латинских букв. Сдвиньте каждую букву на k позиций вправо по алфавиту циклически (после z снова a).\n\nФормат ввода:\nПервая строка: k.\nВторая строка: s.\nФормат вывода: зашифрованная строка.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1\nabc",
+          "expected": "bcd"
+        },
+        {
+          "input": "2\nxyz",
+          "expected": "zab"
+        },
+        {
+          "input": "26\npython",
+          "expected": "python"
+        },
+        {
+          "input": "52\nhello",
+          "expected": "hello"
+        },
+        {
+          "input": "5\nz",
+          "expected": "e"
+        },
+        {
+          "input": "27\na",
+          "expected": "b"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Длина самого длинного слова",
+    "statement_md": "Дана строка, слова разделены пробелами. Выведите длину самого длинного слова.\nЕсли строка пустая, вывести 0.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1200,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "i love python",
+          "expected": "6"
+        },
+        {
+          "input": "a bb ccc dddd",
+          "expected": "4"
+        },
+        {
+          "input": "single",
+          "expected": "6"
+        },
+        {
+          "input": "",
+          "expected": "0"
+        },
+        {
+          "input": "many   spaces here",
+          "expected": "6"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Суммы строк матрицы",
+    "statement_md": "Даны n и m, затем матрица n x m. Для каждой строки выведите сумму элементов в отдельной строке.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1800,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "2 3\n1 2 3\n4 5 6",
+          "expected": "6\n15"
+        },
+        {
+          "input": "1 4\n10 20 30 40",
+          "expected": "100"
+        },
+        {
+          "input": "3 1\n5\n-2\n0",
+          "expected": "5\n-2\n0"
+        },
+        {
+          "input": "2 2\n-1 -1\n1 1",
+          "expected": "-2\n2"
+        },
+        {
+          "input": "3 3\n0 0 0\n0 0 0\n0 0 0",
+          "expected": "0\n0\n0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Простое или составное",
+    "statement_md": "Дано целое n (n >= 2). Выведите PRIME, если число простое, иначе COMPOSITE.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "2",
+          "expected": "PRIME"
+        },
+        {
+          "input": "3",
+          "expected": "PRIME"
+        },
+        {
+          "input": "4",
+          "expected": "COMPOSITE"
+        },
+        {
+          "input": "29",
+          "expected": "PRIME"
+        },
+        {
+          "input": "100",
+          "expected": "COMPOSITE"
+        },
+        {
+          "input": "97",
+          "expected": "PRIME"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество локальных максимумов",
+    "statement_md": "Дано n и массив из n чисел. Локальный максимум — элемент, который строго больше соседей слева и справа. Выведите количество локальных максимумов (крайние элементы не считаются).",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "5\n1 3 2 4 1",
+          "expected": "2"
+        },
+        {
+          "input": "4\n1 2 3 4",
+          "expected": "0"
+        },
+        {
+          "input": "7\n5 1 5 1 5 1 5",
+          "expected": "2"
+        },
+        {
+          "input": "3\n2 1 2",
+          "expected": "0"
+        },
+        {
+          "input": "6\n1 5 1 5 1 5",
+          "expected": "2"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Слияние двух отсортированных массивов",
+    "statement_md": "Даны два отсортированных по неубыванию массива. Выведите их слияние, тоже отсортированное.\n\nФормат:\nПервая строка: n\nВторая: n чисел\nТретья: m\nЧетвертая: m чисел",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1800,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "3\n1 3 5\n3\n2 4 6",
+          "expected": "1 2 3 4 5 6"
+        },
+        {
+          "input": "2\n1 2\n2\n1 2",
+          "expected": "1 1 2 2"
+        },
+        {
+          "input": "1\n5\n3\n1 2 3",
+          "expected": "1 2 3 5"
+        },
+        {
+          "input": "4\n-3 -1 0 8\n3\n-2 2 2",
+          "expected": "-3 -2 -1 0 2 2 8"
+        },
+        {
+          "input": "1\n10\n1\n9",
+          "expected": "9 10"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Десятичное в двоичное",
+    "statement_md": "Дано целое неотрицательное число n. Выведите его двоичную запись без ведущих нулей.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1200,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "0",
+          "expected": "0"
+        },
+        {
+          "input": "1",
+          "expected": "1"
+        },
+        {
+          "input": "2",
+          "expected": "10"
+        },
+        {
+          "input": "10",
+          "expected": "1010"
+        },
+        {
+          "input": "255",
+          "expected": "11111111"
+        },
+        {
+          "input": "1024",
+          "expected": "10000000000"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Проверка скобочной последовательности",
+    "statement_md": "Дана строка s, состоящая только из символов (), [], {} (строка может быть пустой). Выведите YES, если скобочная последовательность правильная, иначе NO.\n\nФормат ввода: одна строка s.\nФормат вывода: YES или NO.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1800,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "()[]{}",
+          "expected": "YES"
+        },
+        {
+          "input": "([{}])",
+          "expected": "YES"
+        },
+        {
+          "input": "(]",
+          "expected": "NO"
+        },
+        {
+          "input": "([)]",
+          "expected": "NO"
+        },
+        {
+          "input": "(((())))",
+          "expected": "YES"
+        },
+        {
+          "input": "",
+          "expected": "YES"
+        }
+      ]
+    }
+  },
+  {
+    "title": "RLE-сжатие строки",
+    "statement_md": "Дана непустая строка из латинских букв. Сожмите ее методом RLE: каждую максимальную группу одинаковых подряд символов замените на символ и длину группы.\n\nПример: aaabb -> a3b2.\nФормат ввода: одна строка.\nФормат вывода: RLE-представление строки.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1800,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "aaabb",
+          "expected": "a3b2"
+        },
+        {
+          "input": "abcd",
+          "expected": "a1b1c1d1"
+        },
+        {
+          "input": "zzzzzz",
+          "expected": "z6"
+        },
+        {
+          "input": "aabcccccaaa",
+          "expected": "a2b1c5a3"
+        },
+        {
+          "input": "q",
+          "expected": "q1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество простых чисел до N",
+    "statement_md": "Дано n (2 <= n <= 100000). Выведите количество простых чисел от 2 до n включительно.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "2",
+          "expected": "1"
+        },
+        {
+          "input": "10",
+          "expected": "4"
+        },
+        {
+          "input": "30",
+          "expected": "10"
+        },
+        {
+          "input": "100",
+          "expected": "25"
+        },
+        {
+          "input": "1000",
+          "expected": "168"
+        },
+        {
+          "input": "100000",
+          "expected": "9592"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сумма на отрезке (префиксные суммы)",
+    "statement_md": "Дан массив из n целых чисел и q запросов вида l r (индексация с 1). Для каждого запроса выведите сумму элементов на отрезке [l, r].\n\nФормат ввода:\nПервая строка: n q.\nВторая строка: n целых чисел.\nСледующие q строк: l r.\nФормат вывода: q строк, по одной сумме на запрос.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "5 3\n1 2 3 4 5\n1 3\n2 5\n4 4",
+          "expected": "6\n14\n4"
+        },
+        {
+          "input": "4 2\n10 10 10 10\n1 4\n2 3",
+          "expected": "40\n20"
+        },
+        {
+          "input": "6 3\n-1 2 -3 4 -5 6\n1 6\n3 5\n2 2",
+          "expected": "3\n-4\n2"
+        },
+        {
+          "input": "1 2\n7\n1 1\n1 1",
+          "expected": "7\n7"
+        },
+        {
+          "input": "5 1\n5 4 3 2 1\n2 4",
+          "expected": "9"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Индексы пары с заданной суммой",
+    "statement_md": "Даны n, массив из n целых чисел и число target. Найдите два разных индекса i < j (1-indexed), такие что a[i] + a[j] = target.\nЕсли решений несколько, выведите пару с минимальным i, при равном i — с минимальным j. Если нет решения, выведите -1 -1.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "4\n2 7 11 15\n9",
+          "expected": "1 2"
+        },
+        {
+          "input": "5\n3 2 4 3 6\n6",
+          "expected": "1 4"
+        },
+        {
+          "input": "3\n1 2 3\n10",
+          "expected": "-1 -1"
+        },
+        {
+          "input": "6\n0 4 3 0 5 1\n0",
+          "expected": "1 4"
+        },
+        {
+          "input": "5\n1 5 1 5 1\n6",
+          "expected": "1 2"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Поворот квадратной матрицы",
+    "statement_md": "Даны n и квадратная матрица n x n. Поверните матрицу на 90 градусов по часовой стрелке и выведите результат.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "2\n1 2\n3 4",
+          "expected": "3 1\n4 2"
+        },
+        {
+          "input": "3\n1 2 3\n4 5 6\n7 8 9",
+          "expected": "7 4 1\n8 5 2\n9 6 3"
+        },
+        {
+          "input": "1\n42",
+          "expected": "42"
+        },
+        {
+          "input": "3\n0 1 0\n1 0 1\n0 1 0",
+          "expected": "0 1 0\n1 0 1\n0 1 0"
+        },
+        {
+          "input": "2\n-1 -2\n-3 -4",
+          "expected": "-3 -1\n-4 -2"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество групп анаграмм",
+    "statement_md": "Даны n слов из маленьких латинских букв. Два слова в одной группе, если одно можно получить перестановкой букв другого (анаграммы). Выведите число различных групп.\n\nФормат ввода:\nПервая строка: n.\nВторая строка: n слов через пробел.\nФормат вывода: одно целое число — количество групп.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "6\nlisten silent enlist google gogole abc",
+          "expected": "3"
+        },
+        {
+          "input": "4\na b c d",
+          "expected": "4"
+        },
+        {
+          "input": "5\nrat tar art star tars",
+          "expected": "2"
+        },
+        {
+          "input": "3\naaa aaa aaa",
+          "expected": "1"
+        },
+        {
+          "input": "1\npython",
+          "expected": "1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Значение многочлена (схема Горнера)",
+    "statement_md": "Даны степень n, коэффициенты a0..an и число x. Вычислите значение многочлена a0*x^n + a1*x^(n-1) + ... + an.\n\nФормат:\nn\na0 a1 ... an\nx",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "2\n1 0 -1\n3",
+          "expected": "8"
+        },
+        {
+          "input": "3\n2 -6 2 -1\n3",
+          "expected": "5"
+        },
+        {
+          "input": "1\n5 7\n10",
+          "expected": "57"
+        },
+        {
+          "input": "0\n42\n999",
+          "expected": "42"
+        },
+        {
+          "input": "2\n1 1 1\n2",
+          "expected": "7"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сложение дробей",
+    "statement_md": "Даны четыре целых числа a, b, c, d (b != 0, d != 0), задающие дроби a/b и c/d. Выведите их сумму в несократимом виде p q, где p/q = a/b + c/d.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "1 2 1 3",
+          "expected": "5 6"
+        },
+        {
+          "input": "-1 2 1 2",
+          "expected": "0 1"
+        },
+        {
+          "input": "3 4 5 6",
+          "expected": "19 12"
+        },
+        {
+          "input": "2 5 -1 10",
+          "expected": "3 10"
+        },
+        {
+          "input": "7 8 1 8",
+          "expected": "1 1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Кратчайший путь в сетке",
+    "statement_md": "Даны n, m и поле n x m из 0 и 1 (0 — свободная клетка, 1 — стена). Найдите длину кратчайшего пути от клетки (1,1) до (n,m), двигаясь только вверх/вниз/влево/вправо. Если пути нет, выведите -1.\n\nЕсли стартовая или конечная клетка — стена, ответ -1.\nДлина пути — число шагов между клетками.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 3000,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "3 3\n0 0 0\n1 1 0\n0 0 0",
+          "expected": "4"
+        },
+        {
+          "input": "2 2\n0 1\n1 0",
+          "expected": "-1"
+        },
+        {
+          "input": "1 1\n0",
+          "expected": "0"
+        },
+        {
+          "input": "1 1\n1",
+          "expected": "-1"
+        },
+        {
+          "input": "4 4\n0 0 1 0\n1 0 1 0\n1 0 0 0\n1 1 1 0",
+          "expected": "6"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Последняя цифра числа",
+    "statement_md": "Дано целое число n. Выведите последнюю цифру его десятичной записи (без учета знака).\n\nФормат ввода: одно целое число n.\nФормат вывода: одна цифра от 0 до 9.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "123",
+          "expected": "3"
+        },
+        {
+          "input": "-987",
+          "expected": "7"
+        },
+        {
+          "input": "0",
+          "expected": "0"
+        },
+        {
+          "input": "10",
+          "expected": "0"
+        },
+        {
+          "input": "-10",
+          "expected": "0"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Високосный год",
+    "statement_md": "Дан год y. Выведите YES, если год високосный, иначе NO.\n\nГод високосный, если делится на 400, или делится на 4 и не делится на 100.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "2000",
+          "expected": "YES"
+        },
+        {
+          "input": "1900",
+          "expected": "NO"
+        },
+        {
+          "input": "2024",
+          "expected": "YES"
+        },
+        {
+          "input": "2023",
+          "expected": "NO"
+        },
+        {
+          "input": "2400",
+          "expected": "YES"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сумма квадратов от 1 до N",
+    "statement_md": "Дано целое N (N >= 1). Выведите сумму квадратов чисел от 1 до N.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1",
+          "expected": "1"
+        },
+        {
+          "input": "3",
+          "expected": "14"
+        },
+        {
+          "input": "5",
+          "expected": "55"
+        },
+        {
+          "input": "10",
+          "expected": "385"
+        },
+        {
+          "input": "100",
+          "expected": "338350"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Минимум и максимум из двух",
+    "statement_md": "Даны два целых числа a и b. Выведите два числа: сначала минимум, затем максимум.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "5 2",
+          "expected": "2 5"
+        },
+        {
+          "input": "-1 -7",
+          "expected": "-7 -1"
+        },
+        {
+          "input": "0 0",
+          "expected": "0 0"
+        },
+        {
+          "input": "100 -100",
+          "expected": "-100 100"
+        },
+        {
+          "input": "9 9",
+          "expected": "9 9"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Цвет клетки шахматной доски",
+    "statement_md": "Даны координаты клетки r и c (1..8). Считаем, что клетка (1,1) черная. Выведите BLACK, если клетка черная, иначе WHITE.",
+    "difficulty": "easy",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1000,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1 1",
+          "expected": "BLACK"
+        },
+        {
+          "input": "1 2",
+          "expected": "WHITE"
+        },
+        {
+          "input": "2 1",
+          "expected": "WHITE"
+        },
+        {
+          "input": "8 8",
+          "expected": "BLACK"
+        },
+        {
+          "input": "3 4",
+          "expected": "WHITE"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество различных чисел",
+    "statement_md": "Дано n и n целых чисел. Выведите количество различных значений.\n\nФормат ввода:\nПервая строка: n.\nВторая строка: n чисел.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1200,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "7\n1 2 1 3 2 4 4",
+          "expected": "4"
+        },
+        {
+          "input": "5\n5 5 5 5 5",
+          "expected": "1"
+        },
+        {
+          "input": "6\n1 2 3 4 5 6",
+          "expected": "6"
+        },
+        {
+          "input": "1\n42",
+          "expected": "1"
+        },
+        {
+          "input": "8\n0 -1 0 -1 2 2 3 0",
+          "expected": "4"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Второй максимум",
+    "statement_md": "Дано n и n целых чисел. Выведите второй по величине различный элемент. Если второго различного максимума нет, выведите NO.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "5\n1 5 3 5 2",
+          "expected": "3"
+        },
+        {
+          "input": "4\n7 7 7 7",
+          "expected": "NO"
+        },
+        {
+          "input": "6\n-1 -2 -3 -4 -5 -6",
+          "expected": "-2"
+        },
+        {
+          "input": "3\n1 2 3",
+          "expected": "2"
+        },
+        {
+          "input": "5\n10 9 10 8 9",
+          "expected": "9"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Циклический сдвиг массива вправо",
+    "statement_md": "Даны n, k и массив из n чисел. Выполните циклический сдвиг вправо на k позиций.\n\nФормат ввода:\nПервая строка: n k.\nВторая строка: n чисел.\nФормат вывода: сдвинутый массив через пробел.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "5 1\n1 2 3 4 5",
+          "expected": "5 1 2 3 4"
+        },
+        {
+          "input": "5 7\n1 2 3 4 5",
+          "expected": "4 5 1 2 3"
+        },
+        {
+          "input": "1 100\n42",
+          "expected": "42"
+        },
+        {
+          "input": "4 0\n9 8 7 6",
+          "expected": "9 8 7 6"
+        },
+        {
+          "input": "6 3\n1 1 2 2 3 3",
+          "expected": "2 3 3 1 1 2"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Транспонирование матрицы",
+    "statement_md": "Даны n, m и матрица n x m. Выведите транспонированную матрицу m x n.\n\nФормат ввода:\nПервая строка: n m.\nДалее n строк по m целых чисел.\nФормат вывода: m строк по n чисел.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1800,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "2 3\n1 2 3\n4 5 6",
+          "expected": "1 4\n2 5\n3 6"
+        },
+        {
+          "input": "1 4\n7 8 9 10",
+          "expected": "7\n8\n9\n10"
+        },
+        {
+          "input": "3 1\n5\n-2\n0",
+          "expected": "5 -2 0"
+        },
+        {
+          "input": "2 2\n-1 -2\n3 4",
+          "expected": "-1 3\n-2 4"
+        },
+        {
+          "input": "3 3\n1 0 0\n0 1 0\n0 0 1",
+          "expected": "1 0 0\n0 1 0\n0 0 1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество слов в строке",
+    "statement_md": "Дана строка s (может быть пустой). Слова разделены одним или несколькими пробелами. Выведите количество слов.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1200,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "hello world",
+          "expected": "2"
+        },
+        {
+          "input": "",
+          "expected": "0"
+        },
+        {
+          "input": "   ",
+          "expected": "0"
+        },
+        {
+          "input": "a  b   c",
+          "expected": "3"
+        },
+        {
+          "input": "one",
+          "expected": "1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Сумма диагоналей квадратной матрицы",
+    "statement_md": "Даны n и квадратная матрица n x n. Выведите сумму элементов главной и побочной диагоналей. Центральный элемент (при нечетном n) учитывается один раз.",
+    "difficulty": "medium",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 1500,
+      "memory_limit_mb": 128,
+      "tests": [
+        {
+          "input": "1\n5",
+          "expected": "5"
+        },
+        {
+          "input": "2\n1 2\n3 4",
+          "expected": "10"
+        },
+        {
+          "input": "3\n1 2 3\n4 5 6\n7 8 9",
+          "expected": "25"
+        },
+        {
+          "input": "3\n0 0 0\n0 0 0\n0 0 0",
+          "expected": "0"
+        },
+        {
+          "input": "4\n1 2 3 4\n5 6 7 8\n9 10 11 12\n13 14 15 16",
+          "expected": "68"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество компонент связности",
+    "statement_md": "Дан неориентированный граф из n вершин (1..n) и m ребер. Выведите количество компонент связности.\n\nФормат ввода:\nПервая строка: n m.\nДалее m строк: u v.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2500,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "4 2\n1 2\n3 4",
+          "expected": "2"
+        },
+        {
+          "input": "5 0",
+          "expected": "5"
+        },
+        {
+          "input": "6 3\n1 2\n2 3\n4 5",
+          "expected": "3"
+        },
+        {
+          "input": "3 3\n1 2\n2 3\n1 3",
+          "expected": "1"
+        },
+        {
+          "input": "7 4\n1 2\n2 3\n5 6\n6 7",
+          "expected": "3"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Количество островов",
+    "statement_md": "Даны n, m и сетка n x m из 0 и 1. Остров — максимальная группа единиц, соединенных по сторонам (вверх/вниз/влево/вправо). Выведите количество островов.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 2800,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "3 3\n1 1 0\n0 1 0\n1 0 1",
+          "expected": "3"
+        },
+        {
+          "input": "2 2\n0 0\n0 0",
+          "expected": "0"
+        },
+        {
+          "input": "2 2\n1 1\n1 1",
+          "expected": "1"
+        },
+        {
+          "input": "4 5\n1 0 0 1 0\n1 0 1 1 0\n0 0 0 0 0\n1 1 0 0 1",
+          "expected": "5"
+        },
+        {
+          "input": "1 1\n1",
+          "expected": "1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Длина наибольшей возрастающей подпоследовательности",
+    "statement_md": "Дано n и массив из n целых чисел. Найдите длину наибольшей строго возрастающей подпоследовательности.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 3000,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "5\n1 2 3 4 5",
+          "expected": "5"
+        },
+        {
+          "input": "5\n5 4 3 2 1",
+          "expected": "1"
+        },
+        {
+          "input": "8\n10 9 2 5 3 7 101 18",
+          "expected": "4"
+        },
+        {
+          "input": "6\n1 3 2 3 4 8",
+          "expected": "5"
+        },
+        {
+          "input": "1\n42",
+          "expected": "1"
+        },
+        {
+          "input": "7\n2 2 2 2 2 2 2",
+          "expected": "1"
+        }
+      ]
+    }
+  },
+  {
+    "title": "Минимальное число монет",
+    "statement_md": "Даны n номиналов монет и сумма target (target >= 0). Монеты каждого номинала можно использовать неограниченно. Выведите минимальное число монет, которым можно набрать target. Если набрать нельзя, выведите -1.\n\nФормат ввода:\nПервая строка: n target.\nВторая строка: n положительных целых номиналов.",
+    "difficulty": "hard",
+    "check_type": "tests",
+    "languages": [
+      "python"
+    ],
+    "config": {
+      "time_limit_ms": 3000,
+      "memory_limit_mb": 256,
+      "tests": [
+        {
+          "input": "3 11\n1 2 5",
+          "expected": "3"
+        },
+        {
+          "input": "2 3\n2 4",
+          "expected": "-1"
+        },
+        {
+          "input": "4 27\n10 6 1 7",
+          "expected": "3"
+        },
+        {
+          "input": "1 0\n5",
+          "expected": "0"
+        },
+        {
+          "input": "3 14\n3 7 8",
+          "expected": "2"
+        },
+        {
+          "input": "3 15\n4 6 10",
+          "expected": "-1"
+        }
+      ]
+    }
+  }
+]

@@ -1,0 +1,158 @@
+from flask import Flask, jsonify
+from flask_cors import CORS
+from flask import session, request
+from flask_socketio import join_room
+
+from .config import Config
+from .extensions import db, migrate, socketio
+from .services import presence_service, presence_runtime, realtime_service, battles_service
+
+
+_socket_user_by_sid = {}
+_socket_count_by_user = {}
+_round_timeout_worker_started = False
+
+
+def _mark_user_online(user_id):
+    state = presence_service.set_user_online(user_id)
+    if state.get("changed"):
+        realtime_service.emit_presence_updated(
+            battle_ids=state.get("battle_ids"),
+            room_ids=state.get("room_ids"),
+            match_ids=state.get("match_ids"),
+        )
+    return state
+
+
+def _mark_user_offline(user_id):
+    state = presence_service.set_user_offline(user_id)
+    if state.get("changed"):
+        realtime_service.emit_presence_updated(
+            battle_ids=state.get("battle_ids"),
+            room_ids=state.get("room_ids"),
+            match_ids=state.get("match_ids"),
+        )
+    return state
+
+
+def create_app() -> Flask:
+    app = Flask(__name__)
+    app.config.from_object(Config)
+
+    CORS(app, supports_credentials=True)
+
+    db.init_app(app)
+    migrate.init_app(app, db)
+    socketio.init_app(app)
+    from . import models  # noqa: F401
+
+    from .routes.auth import auth_bp
+    from .routes.battles import battles_bp
+    from .routes.tasks import tasks_bp
+    from .routes.queue import queue_bp
+    from .routes.rooms import rooms_bp
+    from .routes.matches import matches_bp
+    from .routes.integrations import integrations_bp
+
+    app.register_blueprint(auth_bp)
+    app.register_blueprint(battles_bp)
+    app.register_blueprint(tasks_bp)
+    app.register_blueprint(queue_bp)
+    app.register_blueprint(rooms_bp)
+    app.register_blueprint(matches_bp)
+    app.register_blueprint(integrations_bp)
+
+    def _round_timeout_worker():
+        poll_seconds = max(1, int(app.config.get("ROUND_TIMEOUT_POLL_SECONDS", 2)))
+        while True:
+            socketio.sleep(poll_seconds)
+            with app.app_context():
+                running_battles = battles_service.list_running_battles()
+                for battle in running_battles:
+                    battles_service.tick_timeouts(battle)
+
+    def _delayed_tick_battles(battle_ids):
+        delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
+        socketio.sleep(delay_seconds)
+        with app.app_context():
+            for battle_id in battle_ids or []:
+                battle = battles_service.get_battle_or_none(battle_id)
+                if not battle:
+                    continue
+                battles_service.tick_timeouts(battle)
+
+    @socketio.on("subscribe")
+    def handle_subscribe(data):
+        if not isinstance(data, dict):
+            return
+        battle_id = data.get("battle_id")
+        room_id = data.get("room_id")
+        match_id = data.get("match_id")
+        if battle_id:
+            join_room(f"battle:{battle_id}")
+        if room_id:
+            join_room(f"room:{room_id}")
+        if match_id:
+            join_room(f"match:{match_id}")
+        user_id = session.get("user_id")
+        if user_id:
+            join_room(f"user:{user_id}")
+            sid = request.sid
+            if sid and sid not in _socket_user_by_sid:
+                _socket_user_by_sid[sid] = str(user_id)
+                _socket_count_by_user[str(user_id)] = _socket_count_by_user.get(str(user_id), 0) + 1
+                if _socket_count_by_user[str(user_id)] == 1:
+                    presence_runtime.set_online(str(user_id))
+                    _mark_user_online(user_id)
+
+    @socketio.on("connect")
+    def handle_connect():
+        user_id = session.get("user_id")
+        sid = request.sid
+        if not user_id or not sid:
+            return
+        if sid in _socket_user_by_sid:
+            return
+        user_key = str(user_id)
+        _socket_user_by_sid[sid] = user_key
+        _socket_count_by_user[user_key] = _socket_count_by_user.get(user_key, 0) + 1
+        if _socket_count_by_user[user_key] == 1:
+            presence_runtime.set_online(user_key)
+            _mark_user_online(user_id)
+
+    @socketio.on("disconnect")
+    def handle_disconnect():
+        sid = request.sid
+        user_key = _socket_user_by_sid.pop(sid, None)
+        if not user_key:
+            return
+        current = _socket_count_by_user.get(user_key, 0)
+        next_count = max(0, current - 1)
+        if next_count == 0:
+            _socket_count_by_user.pop(user_key, None)
+            presence_runtime.set_offline(user_key)
+            state = _mark_user_offline(user_key)
+            battle_ids = state.get("battle_ids") if state else []
+            if battle_ids:
+                socketio.start_background_task(_delayed_tick_battles, battle_ids)
+        else:
+            _socket_count_by_user[user_key] = next_count
+
+    @app.get("/api/v1/health")
+    def health():
+        return jsonify({"status": "ok"})
+
+    global _round_timeout_worker_started
+    if app.config.get("ROUND_TIMEOUT_BACKGROUND_ENABLED", True) and not _round_timeout_worker_started:
+        socketio.start_background_task(_round_timeout_worker)
+        _round_timeout_worker_started = True
+
+    if app.config.get("AUTO_CREATE_DB", False):
+        with app.app_context():
+            try:
+                db.create_all()
+            except Exception:
+                # Database may be unavailable during local import checks.
+                pass
+
+    return app
