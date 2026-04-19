@@ -20,20 +20,7 @@
           <label class="form-label">Название</label>
           <input class="form-control" :value="newBattleTitle" @input="$emit('update:new-battle-title', $event.target.value)" placeholder="Например, Весенний батл" />
         </div>
-        <div class="col-12 col-md-4 col-lg-3">
-          <label class="form-label">Размер комнаты</label>
-          <input
-            class="form-control"
-            :value="newBattleRoomSize"
-            @input="$emit('update:new-battle-room-size', Number($event.target.value))"
-            type="number"
-            min="2"
-            max="12"
-            step="1"
-            inputmode="numeric"
-          />
-        </div>
-        <div class="col-12 col-md-8 col-lg-3">
+        <div class="col-12 col-lg-3">
           <button class="btn btn-primary w-100" @click="$emit('create-battle')">Создать</button>
         </div>
       </div>
@@ -87,7 +74,6 @@
 defineProps({
   showCreateBattleForm: { type: Boolean, default: false },
   newBattleTitle: { type: String, default: '' },
-  newBattleRoomSize: { type: Number, default: 2 },
   newBattlePackageIds: { type: Array, default: () => [] },
   taskPackages: { type: Array, default: () => [] },
   battles: { type: Array, default: () => [] }
@@ -96,7 +82,6 @@ defineProps({
 defineEmits([
   'toggle-create',
   'update:new-battle-title',
-  'update:new-battle-room-size',
   'toggle-new-battle-package',
   'create-battle',
   'open-battle'
