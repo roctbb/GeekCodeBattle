@@ -3,8 +3,14 @@ set -e
 
 export FLASK_APP=${FLASK_APP:-manage:app}
 
-echo "[backend] running migrations..."
-flask db upgrade
+if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
+  echo "[backend] running migrations..."
+  flask db upgrade
+fi
+
+if [ "$#" -gt 0 ]; then
+  exec "$@"
+fi
 
 echo "[backend] starting gunicorn..."
 exec gunicorn \

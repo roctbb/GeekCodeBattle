@@ -10,6 +10,7 @@ const routes = [
   { path: '/packages', name: 'packages', component: EmptyView },
   { path: '/packages/:packageId', name: 'package-details', component: EmptyView },
   { path: '/packages/:packageId/tasks/:taskId', name: 'package-task-editor', component: EmptyView },
+  { path: '/:pathMatch(.*)*', redirect: '/' },
 ]
 
 const router = createRouter({

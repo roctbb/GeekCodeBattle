@@ -57,6 +57,7 @@ services:
       ROUND_TIMEOUT_BACKGROUND_ENABLED: ${ROUND_TIMEOUT_BACKGROUND_ENABLED:-false}
       ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
       AUTO_CREATE_DB: "false"
+      RUN_MIGRATIONS: "true"
       GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
     healthcheck:
@@ -98,6 +99,7 @@ services:
       ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
       ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
       AUTO_CREATE_DB: "false"
+      RUN_MIGRATIONS: "false"
 
   celery_beat:
     build:
@@ -130,6 +132,7 @@ services:
       ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
       ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
       AUTO_CREATE_DB: "false"
+      RUN_MIGRATIONS: "false"
 
 volumes:
   geekcodebattle_pg:

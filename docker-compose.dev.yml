@@ -42,6 +42,7 @@ services:
       ROUND_TIMEOUT_POLL_SECONDS: "2"
       AUTO_CREATE_DB: "false"
       FLASK_APP: manage:app
+      RUN_MIGRATIONS: "true"
     ports:
       - "8086:8086"
 
@@ -73,6 +74,7 @@ services:
       ROUND_TIMEOUT_POLL_SECONDS: "2"
       AUTO_CREATE_DB: "false"
       FLASK_APP: manage:app
+      RUN_MIGRATIONS: "false"
 
   celery_beat:
     build:
@@ -102,6 +104,7 @@ services:
       ROUND_TIMEOUT_POLL_SECONDS: "2"
       AUTO_CREATE_DB: "false"
       FLASK_APP: manage:app
+      RUN_MIGRATIONS: "false"
 
   frontend:
     image: node:22
