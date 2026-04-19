@@ -37,7 +37,7 @@ services:
         condition: service_healthy
     environment:
       FLASK_APP: manage:app
-      PORT: 8090
+      PORT: 8086
       FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8090}
       BACKEND_URL: ${BACKEND_URL:-http://localhost:8090}
       SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
@@ -68,7 +68,7 @@ services:
       timeout: 5s
       retries: 20
     ports:
-      - "127.0.0.1:${BACKEND_PORT:-8090}:8090"
+      - "127.0.0.1:${BACKEND_PORT:-8086}:8086"
 
   celery_worker:
     build:
