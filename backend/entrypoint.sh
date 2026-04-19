@@ -16,6 +16,6 @@ echo "[backend] starting gunicorn..."
 exec gunicorn \
   --worker-class eventlet \
   --workers "${GUNICORN_WORKERS:-1}" \
-  --bind "0.0.0.0:${PORT:-8086}" \
+  --bind "0.0.0.0:${PORT:-8090}" \
   --timeout "${GUNICORN_TIMEOUT:-120}" \
   manage:app

@@ -50,7 +50,7 @@ docker compose -f docker-compose.dev.yml up --build
 ```
 
 - Frontend dev server: `http://localhost:5173`
-- Backend API: `http://localhost:8086`
+- Backend API: `http://localhost:8090`
 
 ## Миграции
 

@@ -32,7 +32,7 @@ class Config:
     JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
     GEEKCLASS_HOST = os.getenv("GEEKCLASS_HOST", "https://codingprojects.ru")
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8086")
+    BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8090")
     ENABLE_GEEKCLASS_LOGIN = env_bool("ENABLE_GEEKCLASS_LOGIN", True)
     ENABLE_DEV_LOGIN = env_bool("ENABLE_DEV_LOGIN", False)
 

@@ -6,4 +6,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    socketio.run(app, host="0.0.0.0", port=8086, debug=app.config.get("DEBUG", False))
+    socketio.run(app, host="0.0.0.0", port=8090, debug=app.config.get("DEBUG", False))

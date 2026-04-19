@@ -1,7 +1,7 @@
 # Example external Nginx config (host-level nginx, not containerized)
 # Assumes:
 # - frontend static files are deployed to /var/www/geekcodebattle/dist
-# - backend runs in docker-compose on 127.0.0.1:8086
+# - backend runs in docker-compose on 127.0.0.1:8090
 
 server {
     listen 80;
@@ -15,7 +15,7 @@ server {
     }
 
     location /api/ {
-        proxy_pass http://127.0.0.1:8086;
+        proxy_pass http://127.0.0.1:8090;
         proxy_http_version 1.1;
         proxy_set_header Host $host;
         proxy_set_header X-Real-IP $remote_addr;
@@ -24,7 +24,7 @@ server {
     }
 
     location /socket.io/ {
-        proxy_pass http://127.0.0.1:8086/socket.io/;
+        proxy_pass http://127.0.0.1:8090/socket.io/;
         proxy_http_version 1.1;
         proxy_set_header Upgrade $http_upgrade;
         proxy_set_header Connection "upgrade";

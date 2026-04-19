@@ -44,7 +44,7 @@ services:
       FLASK_APP: manage:app
       RUN_MIGRATIONS: "true"
     ports:
-      - "8086:8086"
+      - "8090:8090"
 
   celery_worker:
     build:
