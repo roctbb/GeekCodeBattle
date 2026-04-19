@@ -6,4 +6,4 @@ app = create_app()
 
 
 if __name__ == "__main__":
-    celery.start(["celery", "beat", "--loglevel=INFO"])
+    celery.start(["beat", "--loglevel=INFO"])
