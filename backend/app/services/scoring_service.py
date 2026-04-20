@@ -269,7 +269,7 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
 
     db.session.flush()
 
-    # Requeue players automatically for next round if battle is still running.
+    # Keep players in lobby after round finish: they must press "Ready" again.
     battle_id = room.battle_id if room else None
     if battle_id is not None:
         from ..models import Battle
@@ -279,9 +279,9 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
             for p in participants:
                 existing = QueueEntry.query.filter_by(battle_id=battle.id, user_id=p.student_id).first()
                 if not existing:
-                    db.session.add(QueueEntry(battle_id=battle.id, user_id=p.student_id, is_ready=True))
+                    db.session.add(QueueEntry(battle_id=battle.id, user_id=p.student_id, is_ready=False))
                 else:
-                    existing.is_ready = True
+                    existing.is_ready = False
 
     db.session.commit()
     return match

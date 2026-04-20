@@ -138,6 +138,7 @@
             v-else-if="studentJoinedBattleId && selectedBattle"
             :battle="selectedBattle"
             :queue-entries="queue.entries"
+            :me-id="me.id"
             :my-score="myLeaderboardEntry"
             :leaderboard-participants="leaderboard.participants"
             @ready="readyQueue"
@@ -556,6 +557,7 @@ function setupSocket() {
   })
   socket.on('submission_queued', async (payload) => {
     if (!payload?.student_id || !me.value) return
+    if (!isEventForCurrentMatch(payload)) return
     if (payload.student_id !== me.value.id) {
       showOpponentActivity({
         kind: 'pending',
@@ -569,6 +571,7 @@ function setupSocket() {
   })
   socket.on('submission_verdict', async (payload) => {
     if (!payload?.student_id || !me.value) return
+    if (!isEventForCurrentMatch(payload)) return
     if (payload.student_id === me.value.id) {
       isSubmissionChecking.value = false
       if (payload.verdict === 'accepted') {
@@ -673,6 +676,14 @@ function subscribeSocket() {
     room_id: myRoom.room_id || undefined,
     match_id: myRoom.match_id || undefined
   })
+}
+
+function isEventForCurrentMatch(payload) {
+  if (!showPlayerUi.value) return true
+  const currentMatchId = myRoom.match_id ? String(myRoom.match_id) : null
+  const payloadMatchId = payload?.match_id ? String(payload.match_id) : null
+  if (!currentMatchId || !payloadMatchId) return false
+  return currentMatchId === payloadMatchId
 }
 
 async function devLogin() {

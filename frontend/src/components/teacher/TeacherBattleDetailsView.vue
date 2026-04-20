@@ -180,13 +180,33 @@
       </section>
 
       <section class="mt-4">
-        <div class="d-flex justify-content-between align-items-center mb-2">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
           <h4 class="h6 mb-0">Лог комнат</h4>
-          <small class="text-muted">Кто с кем играл, состояние комнаты и переход к детальному журналу</small>
+          <div class="d-flex align-items-center gap-2">
+            <div class="btn-group btn-group-sm" role="group" aria-label="Фильтр лога комнат">
+              <button
+                type="button"
+                class="btn"
+                :class="roomLogFilter === 'current' ? 'btn-primary' : 'btn-outline-primary'"
+                @click="roomLogFilter = 'current'"
+              >
+                Текущие
+              </button>
+              <button
+                type="button"
+                class="btn"
+                :class="roomLogFilter === 'completed' ? 'btn-primary' : 'btn-outline-primary'"
+                @click="roomLogFilter = 'completed'"
+              >
+                Завершённые
+              </button>
+            </div>
+            <small class="text-muted">Кто с кем играл, состояние комнаты и переход к детальному журналу</small>
+          </div>
         </div>
 
-        <div class="rooms-grid" v-if="battleLogs.length">
-          <article class="room-card" v-for="room in battleLogs" :key="room.room_id">
+        <div class="rooms-grid" v-if="filteredBattleLogs.length">
+          <article class="room-card" v-for="room in filteredBattleLogs" :key="room.room_id">
             <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
               <div>
                 <div class="fw-semibold">room {{ shortId(room.room_id) }}</div>
@@ -221,7 +241,7 @@
           </article>
         </div>
         <div class="empty-state" v-else>
-          Комнаты пока не сформированы.
+          {{ roomLogFilter === 'current' ? 'Текущих комнат пока нет.' : 'Завершённых комнат пока нет.' }}
         </div>
       </section>
     </div>
@@ -229,7 +249,7 @@
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   selectedBattle: { type: Object, default: null },
@@ -260,6 +280,13 @@ const showStart = computed(() => status.value === 'draft' || status.value === 'l
 const showStop = computed(() => status.value === 'running')
 const showFinish = computed(() => status.value === 'running' || status.value === 'stopped')
 const connectedPackagesCount = computed(() => props.battlePackageIds.length)
+const roomLogFilter = ref('current')
+const filteredBattleLogs = computed(() => {
+  if (roomLogFilter.value === 'completed') {
+    return (props.battleLogs || []).filter((room) => isCompletedRoomStatus(room?.status))
+  }
+  return (props.battleLogs || []).filter((room) => !isCompletedRoomStatus(room?.status))
+})
 const scoreboardRows = computed(() => {
   const queueMap = new Map((props.queueEntries || []).map((e) => [e.user_id, e]))
   const boardMap = new Map((props.leaderboardParticipants || []).map((p) => [p.user_id, p]))
@@ -303,6 +330,10 @@ function roomStatusClass(status) {
   if (status === 'cancelled') return 'text-bg-danger'
   if (status === 'waiting_ready') return 'text-bg-secondary'
   return 'text-bg-secondary'
+}
+
+function isCompletedRoomStatus(status) {
+  return status === 'finished' || status === 'cancelled'
 }
 
 function shortId(id) {

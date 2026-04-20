@@ -11,13 +11,7 @@ from ..models import Submission, MatchParticipant, Match, Room, QueueEntry, Batt
 from ..utils import as_uuid
 from .scoring_service import try_finalize_after_submission
 from .matchmaker_service import run_matchmaking
-from .realtime_service import (
-    emit_submission_verdict,
-    emit_round_finished,
-    emit_leaderboard_updated,
-    emit_match_found,
-    emit_queue_updated,
-)
+from .realtime_service import emit_submission_verdict, emit_round_finished, emit_leaderboard_updated, emit_match_found, emit_queue_updated
 
 
 def _to_int_or_none(value):
@@ -169,17 +163,12 @@ def apply_checker_result(payload):
                     queue_entry = QueueEntry.query.filter_by(battle_id=battle.id, user_id=submission.student_id).first()
                     changed = False
                     if not queue_entry:
-                        db.session.add(QueueEntry(battle_id=battle.id, user_id=submission.student_id, is_ready=True))
+                        db.session.add(QueueEntry(battle_id=battle.id, user_id=submission.student_id, is_ready=False))
                         changed = True
-                    elif not queue_entry.is_ready:
-                        queue_entry.is_ready = True
+                    elif queue_entry.is_ready:
+                        queue_entry.is_ready = False
                         changed = True
-
                     if changed:
                         db.session.commit()
                         emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
-                        created_rooms = run_matchmaking(battle.id)
-                        for room_info in created_rooms:
-                            emit_match_found(room_info)
-
     return submission

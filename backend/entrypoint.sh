@@ -1,7 +1,13 @@
 #!/bin/sh
-set -e
+set -eu
 
 export FLASK_APP=${FLASK_APP:-manage:app}
+PORT=${PORT:-8086}
+GUNICORN_WORKERS=${GUNICORN_WORKERS:-1}
+GUNICORN_TIMEOUT=${GUNICORN_TIMEOUT:-120}
+GUNICORN_LOG_LEVEL=${GUNICORN_LOG_LEVEL:-info}
+GUNICORN_ACCESS_LOG=${GUNICORN_ACCESS_LOG:--}
+GUNICORN_ERROR_LOG=${GUNICORN_ERROR_LOG:--}
 
 if [ "${RUN_MIGRATIONS:-true}" = "true" ]; then
   echo "[backend] running migrations..."
@@ -15,7 +21,10 @@ fi
 echo "[backend] starting gunicorn..."
 exec gunicorn \
   --worker-class eventlet \
-  --workers "${GUNICORN_WORKERS:-1}" \
-  --bind "0.0.0.0:${PORT:-8090}" \
-  --timeout "${GUNICORN_TIMEOUT:-120}" \
+  --workers "${GUNICORN_WORKERS}" \
+  --bind "0.0.0.0:${PORT}" \
+  --timeout "${GUNICORN_TIMEOUT}" \
+  --log-level "${GUNICORN_LOG_LEVEL}" \
+  --access-logfile "${GUNICORN_ACCESS_LOG}" \
+  --error-logfile "${GUNICORN_ERROR_LOG}" \
   manage:app

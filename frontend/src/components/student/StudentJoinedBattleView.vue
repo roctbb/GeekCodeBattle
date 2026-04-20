@@ -9,8 +9,20 @@
       </div>
 
       <div class="d-flex flex-wrap gap-2 mb-3">
-        <button class="btn btn-primary" @click="$emit('ready')">Готов</button>
+        <button class="btn btn-primary" @click="$emit('ready')" :disabled="myQueueStatus === 'ready'">
+          {{ myQueueStatus === 'ready' ? 'Вы уже готовы' : 'Готов' }}
+        </button>
         <button class="btn btn-outline-secondary" @click="$emit('leave')">Покинуть сражение</button>
+      </div>
+
+      <div class="my-ready-status mb-3" :class="myQueueStatus === 'ready' ? 'is-ready' : 'is-not-ready'">
+        <div class="d-flex flex-wrap align-items-center gap-2">
+          <span class="text-muted">Ваш статус:</span>
+          <span class="badge" :class="statusClass(myQueueStatus)">{{ statusLabel(myQueueStatus) }}</span>
+        </div>
+        <div class="my-ready-hint" v-if="myQueueStatus !== 'ready'">
+          Нажми «Готов», чтобы попасть в следующий раунд.
+        </div>
       </div>
 
       <div class="alert alert-primary py-2 px-3 mb-3">
@@ -55,6 +67,7 @@ import { computed } from 'vue'
 const props = defineProps({
   battle: { type: Object, default: null },
   queueEntries: { type: Array, default: () => [] },
+  meId: { type: String, default: null },
   myScore: { type: Object, default: null },
   leaderboardParticipants: { type: Array, default: () => [] }
 })
@@ -94,6 +107,12 @@ const myEntry = computed(() => {
   return scoreboard.value.find((item) => item.user_id === props.myScore.user_id) || props.myScore
 })
 
+const myQueueStatus = computed(() => {
+  if (!props.meId) return 'not_ready'
+  const row = (props.queueEntries || []).find((item) => item.user_id === props.meId)
+  return row?.status || 'not_ready'
+})
+
 function statusLabel(status) {
   if (status === 'fighting') return 'Сражается'
   if (status === 'ready') return 'Готов'
@@ -106,3 +125,26 @@ function statusClass(status) {
   return 'text-bg-secondary'
 }
 </script>
+
+<style scoped>
+.my-ready-status {
+  border-radius: 12px;
+  padding: 0.75rem 0.9rem;
+  border: 1px solid transparent;
+}
+
+.my-ready-status.is-ready {
+  background: #edf9f0;
+  border-color: #c3e8cf;
+}
+
+.my-ready-status.is-not-ready {
+  background: #fff4e6;
+  border-color: #ffd8a8;
+}
+
+.my-ready-hint {
+  margin-top: 0.35rem;
+  font-weight: 600;
+}
+</style>

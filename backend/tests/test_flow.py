@@ -247,7 +247,7 @@ def test_grace_period_and_surrender_flow(app):
     queue_after_win = teacher.get(f'/api/v1/battles/{battle_id}/queue')
     assert queue_after_win.status_code == 200
     by_user_after_win = {entry['user_id']: entry for entry in queue_after_win.get_json()['entries']}
-    assert by_user_after_win[s1_user['id']]['status'] == 'ready'
+    assert by_user_after_win[s1_user['id']]['status'] == 'not_ready'
     assert by_user_after_win[s1_user['id']]['is_fighting'] is False
 
     room_grace = s2.get(f'/api/v1/rooms/{room_id}').get_json()
