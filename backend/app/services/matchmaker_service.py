@@ -42,6 +42,24 @@ def _build_rating_map(user_ids: list) -> dict:
     return {uid: int(rating or 1000) for uid, rating in rows}
 
 
+def _find_active_participant_ids(battle_id, user_ids: list) -> set:
+    if not user_ids:
+        return set()
+    rows = (
+        db.session.query(MatchParticipant.student_id)
+        .join(Match, Match.id == MatchParticipant.match_id)
+        .join(Room, Room.id == Match.room_id)
+        .filter(
+            Room.battle_id == battle_id,
+            Match.finished_at.is_(None),
+            MatchParticipant.student_id.in_(user_ids),
+        )
+        .distinct()
+        .all()
+    )
+    return {student_id for (student_id,) in rows}
+
+
 def _choose_task_for_group(battle_id, user_ids: list, rating_map: dict | None = None) -> Task | None:
     task_ids = [row.task_id for row in BattleTask.query.filter_by(battle_id=battle_id).all()]
     if not task_ids:
@@ -98,11 +116,18 @@ def _choose_task_for_group(battle_id, user_ids: list, rating_map: dict | None = 
     return candidate_tasks[0]
 
 
-def _split_ready_entries_by_rating(ready_entries: list[QueueEntry], rating_map: dict) -> list[list[QueueEntry]]:
+def _normalize_room_size(room_size) -> int:
+    try:
+        size = int(room_size)
+    except (TypeError, ValueError):
+        size = 2
+    return max(2, size)
+
+
+def _split_ready_entries_by_rating(ready_entries: list[QueueEntry], rating_map: dict, room_size: int) -> list[list[QueueEntry]]:
     if len(ready_entries) < 2:
         return []
-    if len(ready_entries) == 3:
-        return [ready_entries]
+    room_size = _normalize_room_size(room_size)
 
     sorted_entries = sorted(
         ready_entries,
@@ -110,19 +135,34 @@ def _split_ready_entries_by_rating(ready_entries: list[QueueEntry], rating_map: 
         reverse=True,
     )
 
+    if room_size == 2:
+        if len(sorted_entries) == 3:
+            return [sorted_entries]
+
+        groups = []
+        idx = 0
+        while idx + 1 < len(sorted_entries):
+            groups.append([sorted_entries[idx], sorted_entries[idx + 1]])
+            idx += 2
+
+        # Odd player: merge into the last group.
+        if idx < len(sorted_entries):
+            if groups:
+                groups[-1].append(sorted_entries[idx])
+            else:
+                groups.append([sorted_entries[idx]])
+        return [g for g in groups if len(g) >= 2]
+
+    if len(sorted_entries) < room_size:
+        return []
+
     groups = []
     idx = 0
-    while idx + 1 < len(sorted_entries):
-        groups.append([sorted_entries[idx], sorted_entries[idx + 1]])
-        idx += 2
+    while idx + room_size <= len(sorted_entries):
+        groups.append(sorted_entries[idx:idx + room_size])
+        idx += room_size
 
-    # Odd player: merge into the last (closest-skill among tail) group.
-    if idx < len(sorted_entries):
-        if groups:
-            groups[-1].append(sorted_entries[idx])
-        else:
-            groups.append([sorted_entries[idx]])
-    return [g for g in groups if len(g) >= 2]
+    return groups
 
 
 def _remember_opponents(user_ids: list):
@@ -137,11 +177,14 @@ def _remember_opponents(user_ids: list):
 
 
 def _create_room_and_match(battle: Battle, group: list[QueueEntry]):
+    user_ids = [entry.user_id for entry in group]
+    if _find_active_participant_ids(battle.id, user_ids):
+        return None
+
     room = Room(battle_id=battle.id, status="active", started_at=datetime.now(timezone.utc))
     db.session.add(room)
     db.session.flush()
 
-    user_ids = [entry.user_id for entry in group]
     rating_map = _build_rating_map(user_ids)
     task = _choose_task_for_group(battle.id, user_ids, rating_map=rating_map)
     if task is None:
@@ -170,14 +213,19 @@ def run_matchmaking(battle_id) -> list[dict]:
     delay_seconds = int(current_app.config.get("MATCHMAKING_DELAY_SECONDS", 10))
 
     ready_entries = (
-        QueueEntry.query.filter_by(battle_id=battle.id, is_ready=True)
+        QueueEntry.query
+        .filter_by(battle_id=battle.id, is_ready=True)
         .order_by(QueueEntry.enqueued_at.asc())
+        .with_for_update()
         .all()
     )
+    if ready_entries:
+        active_ids = _find_active_participant_ids(battle.id, [entry.user_id for entry in ready_entries])
+        ready_entries = [entry for entry in ready_entries if entry.user_id not in active_ids]
 
     if len(ready_entries) >= 2:
         rating_map = _build_rating_map([entry.user_id for entry in ready_entries])
-        groups = _split_ready_entries_by_rating(ready_entries, rating_map)
+        groups = _split_ready_entries_by_rating(ready_entries, rating_map, battle.room_size)
         if not groups:
             db.session.commit()
             return created

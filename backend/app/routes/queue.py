@@ -104,11 +104,8 @@ def queue_join(battle_id):
         return fail("Battle not found", 404)
 
     entry, created = queue_service.join_queue(battle_id=battle_id, user_id=session["user_id"])
-    created_rooms = matchmaker_service.run_matchmaking(battle.id) if battle.status == "running" else []
     realtime_service.emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
-    for room in created_rooms:
-        realtime_service.emit_match_found(room)
-    return ok({"status": "joined" if created else "already_joined", "id": str(entry.id), "created_rooms": created_rooms})
+    return ok({"status": "joined" if created else "already_joined", "id": str(entry.id), "created_rooms": []})
 
 
 @queue_bp.post("/battles/<battle_id>/queue/leave")

@@ -1,42 +1,70 @@
 <template>
-  <section class="card shadow-sm border-0" v-if="battle">
+  <section class="battle-shell card shadow-sm border-0" v-if="battle">
     <div class="card-body">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
-        <div>
-          <h2 class="h5 mb-1">{{ battle.title }}</h2>
-          <p class="text-muted mb-0">Статус: {{ battle.status }}</p>
+      <header class="joined-hero mb-4">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-3 mb-3">
+          <div>
+            <p class="joined-eyebrow mb-1">Лобби баттла</p>
+            <h2 class="h4 mb-1">{{ battle.title }}</h2>
+            <p class="text-muted mb-0 d-flex flex-wrap align-items-center gap-2">
+              <span class="status-pill">{{ battle.status }}</span>
+              <span>ID: {{ shortId(battle.id) }}</span>
+            </p>
+          </div>
         </div>
-      </div>
 
-      <div class="d-flex flex-wrap gap-2 mb-3">
+        <div class="hero-metrics">
+          <article class="hero-metric">
+            <span class="hero-metric-label">Ваш скор</span>
+            <strong class="hero-metric-value">{{ myEntry?.season_points ?? 0 }}</strong>
+          </article>
+          <article class="hero-metric">
+            <span class="hero-metric-label">Рейтинг</span>
+            <strong class="hero-metric-value">{{ myEntry?.rating ?? '—' }}</strong>
+          </article>
+          <article class="hero-metric">
+            <span class="hero-metric-label">Участников</span>
+            <strong class="hero-metric-value">{{ scoreboard.length }}</strong>
+          </article>
+          <article class="hero-metric">
+            <span class="hero-metric-label">Ваш статус</span>
+            <span class="badge" :class="statusClass(myQueueStatus)">{{ statusLabel(myQueueStatus) }}</span>
+          </article>
+        </div>
+      </header>
+
+      <div class="joined-actions d-flex flex-wrap gap-2 mb-3">
         <button class="btn btn-primary" @click="$emit('ready')" :disabled="myQueueStatus === 'ready'">
-          {{ myQueueStatus === 'ready' ? 'Вы уже готовы' : 'Готов' }}
+          <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+          {{ myQueueStatus === 'ready' ? 'Вы уже готовы' : 'Готов к раунду' }}
         </button>
-        <button class="btn btn-outline-secondary" @click="$emit('leave')">Покинуть сражение</button>
+        <button class="btn btn-outline-secondary" @click="$emit('leave')">
+          <i class="bi bi-box-arrow-left" aria-hidden="true"></i>
+          Покинуть сражение
+        </button>
       </div>
 
-      <div class="my-ready-status mb-3" :class="myQueueStatus === 'ready' ? 'is-ready' : 'is-not-ready'">
+      <div class="my-ready-status mb-4" :class="myQueueStatus === 'ready' ? 'is-ready' : 'is-not-ready'">
         <div class="d-flex flex-wrap align-items-center gap-2">
           <span class="text-muted">Ваш статус:</span>
           <span class="badge" :class="statusClass(myQueueStatus)">{{ statusLabel(myQueueStatus) }}</span>
         </div>
         <div class="my-ready-hint" v-if="myQueueStatus !== 'ready'">
-          Нажми «Готов», чтобы попасть в следующий раунд.
+          Нажмите «Готов к раунду», чтобы попасть в следующий матч.
         </div>
       </div>
 
-      <div class="alert alert-primary py-2 px-3 mb-3">
-        <strong>Ваш скор:</strong>
-        {{ myEntry?.season_points ?? 0 }}
-        <span class="text-muted">· рейтинг: {{ myEntry?.rating ?? '—' }}</span>
+      <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
+        <h3 class="h6 mb-0">Таблица лобби</h3>
+        <small class="text-muted">Позиция считается по очкам и рейтингу</small>
       </div>
 
-      <h3 class="h6 mb-2">Таблица лобби</h3>
-      <div class="list-group list-group-flush">
-        <div class="list-group-item px-0" v-for="p in scoreboard" :key="p.user_id">
+      <div class="scoreboard-list" v-if="scoreboard.length">
+        <article class="scoreboard-item" :class="{ 'is-me': p.user_id === meId }" v-for="p in scoreboard" :key="p.user_id">
           <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
-            <div class="d-flex align-items-center gap-2">
-              <span class="fw-semibold">#{{ p.rank }} {{ p.name }}</span>
+            <div class="d-flex align-items-center gap-2 flex-wrap">
+              <span class="rank-badge">#{{ p.rank }}</span>
+              <span class="fw-semibold">{{ p.name }}</span>
               <span
                 class="presence-indicator"
                 :title="p.is_online ? 'online' : 'offline'"
@@ -55,8 +83,10 @@
           <div class="progress" role="progressbar" :aria-valuenow="p.progress_percent" aria-valuemin="0" aria-valuemax="100" style="height: 8px;">
             <div class="progress-bar" :style="{ width: `${p.progress_percent}%` }"></div>
           </div>
-        </div>
+        </article>
       </div>
+
+      <p class="text-muted mb-0" v-else>Пока нет участников в таблице.</p>
     </div>
   </section>
 </template>
@@ -124,9 +154,78 @@ function statusClass(status) {
   if (status === 'ready') return 'text-bg-success'
   return 'text-bg-secondary'
 }
+
+function shortId(id) {
+  return String(id || '').slice(0, 8)
+}
 </script>
 
 <style scoped>
+.battle-shell {
+  overflow: hidden;
+}
+
+.joined-hero {
+  border: 1px solid #d9e5fd;
+  border-radius: 16px;
+  background:
+    radial-gradient(circle at 10% -10%, rgba(43, 95, 255, 0.14), rgba(43, 95, 255, 0) 45%),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 164, 0.14), rgba(14, 165, 164, 0) 38%),
+    linear-gradient(145deg, #f9fbff 0%, #f4f8ff 100%);
+  padding: 0.9rem;
+}
+
+.joined-eyebrow {
+  font-size: 0.72rem;
+  font-weight: 800;
+  letter-spacing: 0.05em;
+  text-transform: uppercase;
+  color: #4d6190;
+}
+
+.status-pill {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid #d6e2fc;
+  background: #edf3ff;
+  color: #234794;
+}
+
+.hero-metrics {
+  display: grid;
+  gap: 0.55rem;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.hero-metric {
+  border: 1px solid #dbe5f9;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.85);
+  padding: 0.58rem 0.66rem;
+}
+
+.hero-metric-label {
+  display: block;
+  font-size: 0.74rem;
+  color: #62749a;
+}
+
+.hero-metric-value {
+  font-size: 1.12rem;
+  line-height: 1.2;
+  color: #1f3568;
+}
+
+.joined-actions .btn {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.42rem;
+}
+
 .my-ready-status {
   border-radius: 12px;
   padding: 0.75rem 0.9rem;
@@ -146,5 +245,56 @@ function statusClass(status) {
 .my-ready-hint {
   margin-top: 0.35rem;
   font-weight: 600;
+}
+
+.scoreboard-list {
+  display: grid;
+  gap: 0.6rem;
+}
+
+.scoreboard-item {
+  border: 1px solid #dbe5f9;
+  border-radius: 12px;
+  background: #fbfdff;
+  padding: 0.72rem;
+}
+
+.scoreboard-item.is-me {
+  border-color: #b9d1ff;
+  background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+  box-shadow: inset 0 0 0 1px rgba(43, 95, 255, 0.15);
+}
+
+.rank-badge {
+  min-width: 32px;
+  height: 22px;
+  border-radius: 999px;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  border: 1px solid #d4e1fb;
+  background: #edf3ff;
+  color: #24499a;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+@media (max-width: 992px) {
+  .hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+}
+
+@media (max-width: 768px) {
+  .joined-actions .btn {
+    width: 100%;
+    justify-content: center;
+  }
+}
+
+@media (max-width: 576px) {
+  .hero-metrics {
+    grid-template-columns: 1fr;
+  }
 }
 </style>

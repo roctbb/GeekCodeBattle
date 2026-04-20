@@ -111,8 +111,8 @@ def get_battle_or_none(battle_id):
     return db.session.get(Battle, as_uuid(battle_id))
 
 
-def create_battle(*, title: str, created_by, package_ids=None):
-    battle = Battle(title=title, room_size=2, created_by=as_uuid(created_by), status="draft")
+def create_battle(*, title: str, created_by, room_size: int = 2, package_ids=None):
+    battle = Battle(title=title, room_size=int(room_size), created_by=as_uuid(created_by), status="draft")
     db.session.add(battle)
     db.session.commit()
 

@@ -13,7 +13,7 @@ def login_dev(client, external_id, name, role):
     return r.get_json()
 
 
-def create_task_and_battle(teacher_client):
+def create_task_and_battle(teacher_client, room_size=2):
     rt = teacher_client.post('/api/v1/tasks', json={
         'title': 'A+B',
         'statement_md': 'sum two numbers',
@@ -24,7 +24,7 @@ def create_task_and_battle(teacher_client):
     assert rt.status_code == 201
     task_id = rt.get_json()['id']
 
-    rb = teacher_client.post('/api/v1/battles', json={'title': 'B1', 'room_size': 2})
+    rb = teacher_client.post('/api/v1/battles', json={'title': 'B1', 'room_size': room_size})
     assert rb.status_code == 201
     battle_id = rb.get_json()['id']
 
@@ -328,6 +328,42 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
     assert submission_after_callback.get_json()['verdict'] == 'wrong_answer'
 
 
+def test_cannot_resubmit_while_previous_submission_is_queued(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-queued-guard', 'TeacherQueuedGuard', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'queued-guard-s1', 'QueuedGuardS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'queued-guard-s2', 'QueuedGuardS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    my_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    room_id = my_room['room_id']
+    assert room_id is not None
+
+    first_submit = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert first_submit.status_code == 202
+
+    second_submit = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert second_submit.status_code == 409
+    assert second_submit.get_json()['error']['message'] == 'Previous submission is still being checked'
+
+
 def test_teacher_can_recheck_submission_from_room_log(app, monkeypatch):
     job_counter = {'value': 0}
 
@@ -452,6 +488,92 @@ def test_matchmaking_pairs_by_rating_and_uses_harder_tasks_for_stronger_group(ap
     assert {'easy': 0, 'medium': 1, 'hard': 2}[task_hi] >= {'easy': 0, 'medium': 1, 'hard': 2}[task_lo]
 
 
+def test_matchmaking_does_not_place_fighting_player_into_second_active_room(app):
+    from app.extensions import db
+    from app.models import MatchParticipant, Match, Room
+    from app.utils import as_uuid
+
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-no-dup-room', 'TeacherNoDupRoom', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    s1_user = login_dev(s1, 'no-dup-s1', 'NoDupS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'no-dup-s2', 'NoDupS2', 'student')
+    s3 = app.test_client()
+    login_dev(s3, 'no-dup-s3', 'NoDupS3', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    first_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert first_room is not None
+
+    # Try to requeue a player who is already in active room and pair with a free player.
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s3.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    s1_room_after = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    s3_room = s3.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert s1_room_after == first_room
+    assert s3_room is None
+
+    with app.app_context():
+        active_matches = (
+            db.session.query(Match.id)
+            .join(Room, Room.id == Match.room_id)
+            .join(MatchParticipant, MatchParticipant.match_id == Match.id)
+            .filter(
+                Room.battle_id == as_uuid(battle_id),
+                MatchParticipant.student_id == as_uuid(s1_user['id']),
+                Match.finished_at.is_(None),
+            )
+            .all()
+        )
+        assert len(active_matches) == 1
+
+
+def test_matchmaking_respects_room_size_three(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-room-size-3', 'TeacherRoomSize3', 'teacher')
+    battle_id = create_task_and_battle(teacher, room_size=3)
+
+    students = []
+    for i in range(1, 7):
+        c = app.test_client()
+        login_dev(c, f'room3-s{i}', f'Room3S{i}', 'student')
+        assert c.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+        assert c.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+        students.append(c)
+
+    time.sleep(1.1)
+    students[0].post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    room_ids = []
+    for c in students:
+        r = c.get(f'/api/v1/battles/{battle_id}/my-room')
+        assert r.status_code == 200
+        room_id = r.get_json()['room_id']
+        assert room_id is not None
+        room_ids.append(room_id)
+
+    unique_rooms = set(room_ids)
+    assert len(unique_rooms) == 2
+    room_sizes = {room_id: room_ids.count(room_id) for room_id in unique_rooms}
+    assert all(size == 3 for size in room_sizes.values())
+
+
 def test_round_auto_finishes_when_all_players_disconnected_for_grace(app):
     from app.extensions import db
     from app.models import MatchParticipant
@@ -548,3 +670,34 @@ def test_round_timeout_marks_everyone_as_loss(app):
     by_user = {p['student_id']: p for p in parts_after}
     assert by_user[s1_user['id']]['result_type'] == 'loss'
     assert by_user[s2_user['id']]['result_type'] == 'loss'
+
+
+def test_submit_requires_match_participation(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-submit-participant', 'TeacherSubmitParticipant', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'submit-participant-s1', 'SubmitParticipantS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'submit-participant-s2', 'SubmitParticipantS2', 'student')
+    s3 = app.test_client()
+    login_dev(s3, 'submit-participant-s3', 'SubmitParticipantS3', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert room_id is not None
+
+    submit_r = s3.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert submit_r.status_code == 403
+    assert submit_r.get_json()['error']['message'] == 'Not a participant of this match'

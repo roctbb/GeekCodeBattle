@@ -170,6 +170,13 @@ def get_room(room_id):
             ],
             "grace": winner_info,
             "round": round_info,
+            "my_submission": {
+                "id": str(latest_submission.id),
+                "verdict": latest_submission.verdict,
+                "created_at": latest_submission.created_at.isoformat() if latest_submission.created_at else None,
+            }
+            if latest_submission
+            else None,
         }
     )
 
@@ -203,8 +210,13 @@ def submit(room_id):
     if not match or match.finished_at is not None:
         return fail("No active match", 400)
     participant = rooms_service.get_match_participant(match.id, session["user_id"])
+    if not participant:
+        return fail("Not a participant of this match", 403)
     if participant and (participant.accepted_at is not None or participant.result_type == "loss"):
         return fail("Round is already finished for you", 409)
+    latest_submission = rooms_service.get_latest_submission(match.id, session["user_id"])
+    if latest_submission and latest_submission.verdict == "queued":
+        return fail("Previous submission is still being checked", 409)
     if try_finalize_after_submission(match):
         db.session.refresh(match)
         _emit_finalize_side_effects(match, room.battle_id)

@@ -236,7 +236,7 @@ const taskPackages = ref([])
 const battleTasks = ref([])
 const battlePackages = ref([])
 const myRoom = reactive({ room_id: null, match_id: null, battle_id: null })
-const roomData = reactive({ status: null, participants: [], task: null, grace: null, round: null })
+const roomData = reactive({ status: null, participants: [], task: null, grace: null, round: null, mySubmission: null })
 
 const route = useRoute()
 const router = useRouter()
@@ -581,6 +581,25 @@ function setupSocket() {
         if (streak.value >= 2) {
           showBonusBanner(`COMBO x${streak.value}`)
         }
+        if (showPlayerUi.value) {
+          showRoundOverlay({
+            title: 'Победа в раунде!',
+            subtitle: 'Переходим в лобби и ждём следующий матч',
+            deltaText: 'Нажмите «Готов», когда будете готовы'
+          })
+          myRoom.room_id = null
+          myRoom.match_id = null
+          roomData.status = null
+          roomData.participants = []
+          roomData.task = null
+          roomData.grace = null
+          roomData.round = null
+          roomData.mySubmission = null
+          opponentActivity.value = null
+          subscribeSocket()
+          await syncData()
+          return
+        }
       } else if (payload.verdict === 'wrong_answer') {
         streak.value = 0
         notify('Почти! Проверка не пройдена', 'warning')
@@ -605,7 +624,8 @@ function setupSocket() {
       if (isBattleRoomLogPage.value) await loadSelectedBattleRoomLog().catch(() => {})
     }
   })
-  socket.on('round_finished', async () => {
+  socket.on('round_finished', async (payload) => {
+    if (showPlayerUi.value && !isEventForCurrentMatch(payload)) return
     isSubmissionChecking.value = false
     const meId = me.value?.id
     const beforePoints = meId ? Number((leaderboard.participants.find((p) => p.user_id === meId)?.season_points ?? 0)) : null
@@ -747,6 +767,7 @@ async function logout() {
   roomData.task = null
   roomData.grace = null
   roomData.round = null
+  roomData.mySubmission = null
   isSubmissionChecking.value = false
   opponentActivity.value = null
   streak.value = 0
@@ -1000,6 +1021,8 @@ async function loadCurrentRoom() {
   roomData.task = roomRes.data.task || null
   roomData.grace = roomRes.data.grace || null
   roomData.round = roomRes.data.round || null
+  roomData.mySubmission = roomRes.data.my_submission || null
+  isSubmissionChecking.value = roomData.mySubmission?.verdict === 'queued'
   scheduleGraceRefresh()
   subscribeSocket()
 }
@@ -1026,6 +1049,7 @@ async function detectStudentActiveRoom() {
   roomData.task = null
   roomData.grace = null
   roomData.round = null
+  roomData.mySubmission = null
   opponentActivity.value = null
   clearGraceRefreshTimer()
   return false
@@ -1064,9 +1088,11 @@ async function submitCode() {
     await api.post(`/rooms/${myRoom.room_id}/submit`, submitForm)
     isSubmissionChecking.value = true
     notify('Решение отправлено на проверку', 'success')
-  } catch {
-    isSubmissionChecking.value = false
-    notify('Не удалось отправить решение', 'error')
+  } catch (error) {
+    const isPendingConflict = error?.response?.status === 409
+      && error?.response?.data?.error?.message === 'Previous submission is still being checked'
+    isSubmissionChecking.value = isPendingConflict ? true : false
+    notify(isPendingConflict ? 'Предыдущее решение ещё проверяется' : 'Не удалось отправить решение', isPendingConflict ? 'warning' : 'error')
   }
 }
 

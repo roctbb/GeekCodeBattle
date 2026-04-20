@@ -1,5 +1,5 @@
 <template>
-  <section class="card shadow-sm border-0" v-if="selectedBattle">
+  <section class="battle-detail-shell card shadow-sm border-0" v-if="selectedBattle">
     <div class="card-body">
       <header class="battle-hero mb-4">
         <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
@@ -182,8 +182,8 @@
       <section class="mt-4">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
           <h4 class="h6 mb-0">Лог комнат</h4>
-          <div class="d-flex align-items-center gap-2">
-            <div class="btn-group btn-group-sm" role="group" aria-label="Фильтр лога комнат">
+          <div class="room-filter-wrap">
+            <div class="btn-group btn-group-sm room-filter-toggle" role="group" aria-label="Фильтр лога комнат">
               <button
                 type="button"
                 class="btn"
@@ -201,9 +201,11 @@
                 Завершённые
               </button>
             </div>
-            <small class="text-muted">Кто с кем играл, состояние комнаты и переход к детальному журналу</small>
           </div>
         </div>
+        <p class="room-filter-hint text-muted mb-2">
+          Кто с кем играл, состояние комнаты и переход к детальному журналу.
+        </p>
 
         <div class="rooms-grid" v-if="filteredBattleLogs.length">
           <article class="room-card" v-for="room in filteredBattleLogs" :key="room.room_id">
@@ -228,11 +230,6 @@
               <span class="mx-1">·</span>
               <span>Раундов: {{ room.matches_count ?? 0 }}</span>
             </p>
-
-            <div class="task-statement" v-if="room.latest_match?.task?.statement_md">
-              <div class="task-statement-label">Условие задачи</div>
-              <pre class="task-statement-text">{{ room.latest_match.task.statement_md }}</pre>
-            </div>
 
             <button class="btn btn-sm btn-outline-primary action-btn action-btn-sm w-100" @click="$emit('open-room-log', room.room_id)">
               <i class="bi bi-journal-text" aria-hidden="true"></i>
@@ -348,11 +345,18 @@ function formatDate(value) {
 </script>
 
 <style scoped>
+.battle-detail-shell {
+  overflow: hidden;
+}
+
 .battle-hero {
-  padding: 0.9rem;
+  padding: 1rem;
   border-radius: 14px;
-  border: 1px solid #d9e2f6;
-  background: linear-gradient(140deg, #f9fbff 0%, #f3f8ff 100%);
+  border: 1px solid #d8e3fb;
+  background:
+    radial-gradient(circle at 8% -15%, rgba(43, 95, 255, 0.14), rgba(43, 95, 255, 0) 48%),
+    radial-gradient(circle at 95% -8%, rgba(14, 165, 164, 0.16), rgba(14, 165, 164, 0) 40%),
+    linear-gradient(145deg, #f9fbff 0%, #f3f8ff 100%);
 }
 
 .hero-eyebrow {
@@ -371,9 +375,15 @@ function formatDate(value) {
 
 .hero-stat {
   border: 1px solid #dbe5f8;
-  border-radius: 10px;
-  background: #fff;
-  padding: 0.6rem 0.7rem;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.86);
+  padding: 0.65rem 0.74rem;
+  transition: transform 140ms ease, box-shadow 140ms ease;
+}
+
+.hero-stat:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 20px rgba(32, 58, 117, 0.08);
 }
 
 .hero-stat-label {
@@ -399,12 +409,19 @@ function formatDate(value) {
 .package-card {
   border: 1px solid #dce5f8;
   border-radius: 12px;
-  background: #fbfdff;
-  padding: 0.7rem;
+  background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
+  padding: 0.74rem;
   display: flex;
   justify-content: space-between;
   gap: 0.55rem;
   align-items: center;
+  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+}
+
+.package-card:hover {
+  transform: translateY(-1px);
+  border-color: #c6d8fb;
+  box-shadow: 0 10px 24px rgba(38, 62, 122, 0.09);
 }
 
 .rank-pill {
@@ -431,35 +448,52 @@ function formatDate(value) {
 .room-card {
   border: 1px solid #dde6f8;
   border-radius: 12px;
-  background: #fbfdff;
-  padding: 0.75rem;
+  background: linear-gradient(180deg, #fcfeff 0%, #f8fbff 100%);
+  padding: 0.78rem;
+  box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
+  transition: transform 140ms ease, box-shadow 140ms ease;
 }
 
-.task-statement {
-  border: 1px solid #dce4f7;
-  border-radius: 10px;
-  background: #f8fbff;
-  padding: 0.55rem 0.6rem;
-  margin-bottom: 0.7rem;
+.room-card:hover {
+  transform: translateY(-1px);
+  box-shadow: 0 10px 22px rgba(32, 58, 117, 0.1);
 }
 
-.task-statement-label {
-  font-size: 0.74rem;
-  text-transform: uppercase;
-  letter-spacing: 0.04em;
-  color: #5f7090;
+.soft-panel :deep(.list-group-item) {
+  border-color: #dde7fa;
+  background: transparent;
+}
+
+.soft-panel :deep(.list-group-item + .list-group-item) {
+  margin-top: 0.12rem;
+}
+
+.soft-panel :deep(.progress) {
+  background: #e5edff;
+}
+
+.soft-panel :deep(.progress-bar) {
+  background: linear-gradient(90deg, #2b5fff 0%, #0ea5a4 100%);
+}
+
+.rooms-grid :deep(.badge),
+.package-grid :deep(.badge) {
   font-weight: 700;
-  margin-bottom: 0.3rem;
 }
 
-.task-statement-text {
-  margin: 0;
-  white-space: pre-wrap;
-  max-height: 110px;
-  overflow: auto;
+.room-filter-wrap {
+  display: inline-flex;
+  align-items: center;
+  justify-content: flex-end;
+}
+
+.room-filter-toggle {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.room-filter-hint {
   font-size: 0.82rem;
-  line-height: 1.35;
-  color: #2a3f69;
 }
 
 @media (max-width: 992px) {
@@ -467,6 +501,16 @@ function formatDate(value) {
   .package-grid,
   .rooms-grid {
     grid-template-columns: 1fr;
+  }
+
+  .package-card {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
+  .room-filter-wrap {
+    width: 100%;
+    justify-content: flex-start;
   }
 }
 </style>

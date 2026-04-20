@@ -24,6 +24,13 @@ def create_battle():
     title = (data.get("title") or "").strip()
     if not title:
         return fail("title is required", 400)
+    room_size = data.get("room_size", 2)
+    try:
+        room_size = int(room_size)
+    except (TypeError, ValueError):
+        return fail("room_size must be integer", 400)
+    if room_size < 2:
+        return fail("room_size must be >= 2", 400)
 
     package_ids = data.get("package_ids", [])
     if package_ids is None:
@@ -34,6 +41,7 @@ def create_battle():
     battle = battles_service.create_battle(
         title=title,
         created_by=session["user_id"],
+        room_size=room_size,
         package_ids=package_ids,
     )
     return ok(battle_out(battle), 201)

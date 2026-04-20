@@ -1,7 +1,7 @@
 from flask import Flask, jsonify
 from flask_cors import CORS
 from flask import session, request
-from flask_socketio import join_room
+from flask_socketio import join_room, leave_room
 
 from .config import Config
 from .celery_app import init_celery
@@ -11,6 +11,38 @@ from .services import presence_service, presence_runtime, realtime_service, batt
 
 _socket_user_by_sid = {}
 _socket_count_by_user = {}
+_socket_scope_by_sid = {}
+
+
+def _normalize_scope_value(value):
+    if value is None:
+        return None
+    text = str(value).strip()
+    return text or None
+
+
+def _update_socket_scopes_for_sid(sid, *, battle_id=None, room_id=None, match_id=None):
+    if not sid:
+        return
+
+    next_scope = {
+        "battle": _normalize_scope_value(battle_id),
+        "room": _normalize_scope_value(room_id),
+        "match": _normalize_scope_value(match_id),
+    }
+    prev_scope = _socket_scope_by_sid.get(sid, {})
+
+    for scope_name in ("battle", "room", "match"):
+        prev_id = prev_scope.get(scope_name)
+        next_id = next_scope.get(scope_name)
+        if prev_id and prev_id != next_id:
+            leave_room(f"{scope_name}:{prev_id}")
+        if next_id:
+            join_room(f"{scope_name}:{next_id}")
+
+    _socket_scope_by_sid[sid] = next_scope
+
+
 def _mark_user_online(user_id):
     state = presence_service.set_user_online(user_id)
     if state.get("changed"):
@@ -86,19 +118,19 @@ def create_app() -> Flask:
     def handle_subscribe(data):
         if not isinstance(data, dict):
             return
+        sid = request.sid
         battle_id = data.get("battle_id")
         room_id = data.get("room_id")
         match_id = data.get("match_id")
-        if battle_id:
-            join_room(f"battle:{battle_id}")
-        if room_id:
-            join_room(f"room:{room_id}")
-        if match_id:
-            join_room(f"match:{match_id}")
+        _update_socket_scopes_for_sid(
+            sid,
+            battle_id=battle_id,
+            room_id=room_id,
+            match_id=match_id,
+        )
         user_id = session.get("user_id")
         if user_id:
             join_room(f"user:{user_id}")
-            sid = request.sid
             if sid and sid not in _socket_user_by_sid:
                 _socket_user_by_sid[sid] = str(user_id)
                 _socket_count_by_user[str(user_id)] = _socket_count_by_user.get(str(user_id), 0) + 1
@@ -124,6 +156,7 @@ def create_app() -> Flask:
     @socketio.on("disconnect")
     def handle_disconnect():
         sid = request.sid
+        _socket_scope_by_sid.pop(sid, None)
         user_key = _socket_user_by_sid.pop(sid, None)
         if not user_key:
             return

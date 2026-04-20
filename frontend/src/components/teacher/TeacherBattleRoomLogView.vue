@@ -172,9 +172,10 @@ function verdictClass(verdict) {
 }
 
 function resultClass(resultType) {
-  if (resultType === 'accepted') return 'text-bg-success'
-  if (resultType === 'wrong_answer') return 'text-bg-danger'
-  if (resultType === 'surrendered') return 'text-bg-dark'
+  if (resultType === 'win') return 'text-bg-success'
+  if (resultType === 'draw') return 'text-bg-warning'
+  if (resultType === 'loss') return 'text-bg-danger'
+  if (resultType === 'no_result') return 'text-bg-secondary'
   return 'text-bg-secondary'
 }
 
