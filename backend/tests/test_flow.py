@@ -287,6 +287,50 @@ def test_room_public_tests_include_actual_output_from_checker_details(app):
     assert tests[0]['actual'] == '4'
 
 
+def test_room_my_submission_contains_checker_error_message(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-checker-error-message', 'TeacherCheckerErrorMessage', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'checker-error-s1', 'CheckerErrorS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'checker-error-s2', 'CheckerErrorS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+    room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert room_id is not None
+
+    submit_r = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(',
+    })
+    assert submit_r.status_code == 202
+    submission_id = submit_r.get_json()['submission_id']
+
+    callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
+        'callback_id': submission_id,
+        'status': 'error',
+        'points': 0,
+        'max_points': 1,
+        'comment': 'Compilation error: unexpected EOF while parsing',
+    })
+    assert callback_r.status_code == 200
+
+    room_after = s1.get(f'/api/v1/rooms/{room_id}')
+    assert room_after.status_code == 200
+    my_submission = room_after.get_json()['my_submission']
+    assert my_submission['verdict'] == 'internal_error'
+    assert my_submission['checker_status'] == 'error'
+    assert 'Compilation error' in (my_submission['checker_message'] or '')
+
+
 def test_task_package_import_export(app):
     teacher = app.test_client()
     login_dev(teacher, 'teacher-pkg', 'Teacher', 'teacher')

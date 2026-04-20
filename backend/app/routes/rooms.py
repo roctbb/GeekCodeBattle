@@ -111,6 +111,83 @@ def _extract_visible_test_results(latest_submission):
     return results
 
 
+def _extract_checker_feedback_text(latest_submission):
+    if latest_submission is None:
+        return None
+
+    raw = latest_submission.checker_comment_raw
+    if raw is None:
+        return None
+
+    def _as_text(value):
+        if value is None:
+            return None
+        if isinstance(value, str):
+            value = value.strip()
+            return value or None
+        if isinstance(value, (int, float, bool)):
+            return str(value)
+        if isinstance(value, (dict, list)):
+            return json.dumps(value, ensure_ascii=False)
+        return str(value)
+
+    try:
+        parsed = json.loads(raw)
+    except Exception:
+        text = _as_text(raw)
+        if not text:
+            return None
+        return text[:4000]
+
+    if isinstance(parsed, str):
+        text = _as_text(parsed)
+        return text[:4000] if text else None
+
+    if isinstance(parsed, dict):
+        for key in (
+            "comment",
+            "message",
+            "error",
+            "stderr",
+            "compile_error",
+            "runtime_error",
+            "traceback",
+            "details",
+        ):
+            if key not in parsed:
+                continue
+            text = _as_text(parsed.get(key))
+            if text:
+                return text[:4000]
+        text = _as_text(parsed)
+        return text[:4000] if text else None
+
+    if isinstance(parsed, list):
+        lines = []
+        for item in parsed:
+            if isinstance(item, dict):
+                item_text = None
+                for key in ("message", "error", "stderr", "comment", "output", "actual"):
+                    if key in item:
+                        item_text = _as_text(item.get(key))
+                        if item_text:
+                            break
+                if not item_text:
+                    item_text = _as_text(item)
+            else:
+                item_text = _as_text(item)
+            if item_text:
+                lines.append(item_text)
+            if len(lines) >= 3:
+                break
+        if not lines:
+            return None
+        return "\n\n".join(lines)[:4000]
+
+    text = _as_text(parsed)
+    return text[:4000] if text else None
+
+
 @rooms_bp.get("/rooms/<room_id>")
 @login_required
 def get_room(room_id):
@@ -134,6 +211,7 @@ def get_room(room_id):
         latest_submission = rooms_service.get_latest_submission(match.id, session["user_id"])
 
     visible_test_results = _extract_visible_test_results(latest_submission)
+    checker_feedback_text = _extract_checker_feedback_text(latest_submission)
 
     public_tests = []
     if task and isinstance(task.config_json, dict):
@@ -228,6 +306,8 @@ def get_room(room_id):
                 "id": str(latest_submission.id),
                 "verdict": latest_submission.verdict,
                 "created_at": latest_submission.created_at.isoformat() if latest_submission.created_at else None,
+                "checker_status": latest_submission.checker_status_raw,
+                "checker_message": checker_feedback_text,
             }
             if latest_submission
             else None,

@@ -113,6 +113,13 @@
         Список участников скоро появится.
       </div>
 
+      <div class="mb-3" v-if="submissionFeedbackText">
+        <div class="alert py-2 px-3 mb-0" :class="submissionFeedbackClass">
+          <strong>{{ submissionFeedbackTitle }}:</strong>
+          <pre class="mb-0 mt-1 small">{{ submissionFeedbackText }}</pre>
+        </div>
+      </div>
+
       <div class="d-flex flex-wrap align-items-center gap-2 mb-3">
         <select
           class="form-select w-auto"
@@ -166,7 +173,8 @@ const props = defineProps({
   isChecking: { type: Boolean, default: false },
   opponentActivity: { type: Object, default: null },
   grace: { type: Object, default: null },
-  round: { type: Object, default: null }
+  round: { type: Object, default: null },
+  mySubmission: { type: Object, default: null }
 })
 
 defineEmits(['update:submit-language', 'update:submit-code', 'submit', 'surrender'])
@@ -206,6 +214,24 @@ const graceTimer = computed(() => {
     label: 'До конца дорешивания',
     value: formatSeconds(seconds)
   }
+})
+
+const submissionFeedbackText = computed(() => {
+  const submission = props.mySubmission
+  if (!submission) return ''
+  if (submission.verdict === 'queued' || submission.verdict === 'accepted') return ''
+  const message = submission.checker_message ? String(submission.checker_message).trim() : ''
+  if (message) return message
+  if (submission.verdict === 'internal_error') return 'Во время проверки произошла ошибка.'
+  return ''
+})
+
+const submissionFeedbackTitle = computed(() => {
+  return props.mySubmission?.verdict === 'internal_error' ? 'Ошибка проверки' : 'Комментарий проверки'
+})
+
+const submissionFeedbackClass = computed(() => {
+  return props.mySubmission?.verdict === 'internal_error' ? 'alert-danger' : 'alert-secondary'
 })
 
 onMounted(() => {

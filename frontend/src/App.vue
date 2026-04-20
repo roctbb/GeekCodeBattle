@@ -128,6 +128,7 @@
             :opponent-activity="opponentActivity"
             :grace="roomData.grace"
             :round="roomData.round"
+            :my-submission="roomData.mySubmission"
             @update:submit-language="submitForm.language = $event"
             @update:submit-code="updateSubmitCode"
             @submit="submitCode"
