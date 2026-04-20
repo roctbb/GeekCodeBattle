@@ -578,17 +578,24 @@ function setupSocket() {
     if (!isEventForCurrentMatch(payload)) return
     if (payload.student_id === me.value.id) {
       isSubmissionChecking.value = false
+      const winnerStudentId = roomData.grace?.winner_student_id ? String(roomData.grace.winner_student_id) : null
+      const currentStudentId = me.value?.id ? String(me.value.id) : null
+      const acceptedAfterKnownWinner = Boolean(winnerStudentId && currentStudentId && winnerStudentId !== currentStudentId)
       if (payload.verdict === 'accepted') {
         streak.value += 1
         bestStreak.value = Math.max(bestStreak.value, streak.value)
-        notify('Правильно! Отличная отправка', 'bonus', { burst: true, intensity: 'high', banner: 'ПРАВИЛЬНЫЙ ОТВЕТ' })
-        if (streak.value >= 2) {
+        if (acceptedAfterKnownWinner) {
+          notify('Решение принято, но соперник решил раньше', 'info')
+        } else {
+          notify('Правильно! Отличная отправка', 'bonus', { burst: true, intensity: 'high', banner: 'ПРАВИЛЬНЫЙ ОТВЕТ' })
+        }
+        if (!acceptedAfterKnownWinner && streak.value >= 2) {
           showBonusBanner(`COMBO x${streak.value}`)
         }
         if (showPlayerUi.value) {
           showRoundOverlay({
-            title: 'Победа в раунде!',
-            subtitle: 'Переходим в лобби и ждём следующий матч',
+            title: acceptedAfterKnownWinner ? 'Задача решена, но победа у соперника' : 'Победа в раунде!',
+            subtitle: acceptedAfterKnownWinner ? 'Раунд уже был выигран ранее. Переходим в лобби.' : 'Переходим в лобби и ждём следующий матч',
             deltaText: 'Нажмите «Готов», когда будете готовы'
           })
           myRoom.room_id = null

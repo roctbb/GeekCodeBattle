@@ -175,7 +175,7 @@ def leaderboard(battle_id):
                 ScoreEvent.student_id == User.id,
             ),
         )
-        .filter(Room.battle_id == battle.id, User.role == "student")
+        .filter(Room.battle_id == battle.id)
         .group_by(User.id, User.name, User.rating, User.win_streak, User.loss_streak)
         .order_by(battle_points_expr.desc(), User.rating.desc())
         .all()

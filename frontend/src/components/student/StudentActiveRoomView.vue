@@ -35,6 +35,7 @@
                 <th style="width: 60px;">#</th>
                 <th>Вход</th>
                 <th>Ожидаемый вывод</th>
+                <th>Фактический вывод</th>
                 <th style="width: 140px;">Результат</th>
               </tr>
             </thead>
@@ -43,6 +44,7 @@
                 <td>{{ idx + 1 }}</td>
                 <td><pre class="mb-0 small">{{ t.input }}</pre></td>
                 <td><pre class="mb-0 small">{{ t.expected }}</pre></td>
+                <td><pre class="mb-0 small">{{ testActualOutput(t) }}</pre></td>
                 <td>
                   <span v-if="t.passed === true" class="badge text-bg-success">Пройден</span>
                   <span v-else-if="t.passed === false" class="badge text-bg-danger">Не пройден</span>
@@ -245,6 +247,13 @@ function formatSeconds(totalSeconds) {
   const minutes = Math.floor(sec / 60)
   const seconds = sec % 60
   return `${String(minutes).padStart(2, '0')}:${String(seconds).padStart(2, '0')}`
+}
+
+function testActualOutput(testRow) {
+  const value = testRow?.actual
+  if (value === null || value === undefined) return '—'
+  const text = String(value)
+  return text.length ? text : '(пусто)'
 }
 </script>
 

@@ -236,6 +236,57 @@ def test_rejudge_requires_all_participants(app):
     assert rr.status_code == 400
 
 
+def test_room_public_tests_include_actual_output_from_checker_details(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-test-actual-output', 'TeacherActualOutput', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'actual-output-s1', 'ActualOutputS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'actual-output-s2', 'ActualOutputS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+    room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert room_id is not None
+
+    submit_r = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(4)',
+    })
+    assert submit_r.status_code == 202
+    submission_id = submit_r.get_json()['submission_id']
+
+    callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
+        'callback_id': submission_id,
+        'status': 'success',
+        'points': 0,
+        'max_points': 1,
+        'details': [
+            {
+                'passed': False,
+                'output': '4',
+            }
+        ],
+        'visible_tests_passed': 0,
+        'visible_tests_total': 1,
+    })
+    assert callback_r.status_code == 200
+
+    room_after = s1.get(f'/api/v1/rooms/{room_id}')
+    assert room_after.status_code == 200
+    tests = room_after.get_json()['task']['public_tests']
+    assert len(tests) == 1
+    assert tests[0]['passed'] is False
+    assert tests[0]['actual'] == '4'
+
+
 def test_task_package_import_export(app):
     teacher = app.test_client()
     login_dev(teacher, 'teacher-pkg', 'Teacher', 'teacher')
@@ -368,6 +419,12 @@ def test_grace_period_and_surrender_flow(app):
         'visible_tests_total': 1,
     })
     assert callback_r.status_code == 200
+
+    leaderboard_after_win = teacher.get(f'/api/v1/battles/{battle_id}/leaderboard')
+    assert leaderboard_after_win.status_code == 200
+    leaderboard_by_user = {item['user_id']: item for item in leaderboard_after_win.get_json()['participants']}
+    assert int(leaderboard_by_user[s1_user['id']]['season_points']) > 0
+
     s1_room_after_win = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
     assert s1_room_after_win['room_id'] is None
 

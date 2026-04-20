@@ -9,7 +9,7 @@ from flask import current_app
 from ..extensions import db
 from ..models import Submission, MatchParticipant, Match, Room, QueueEntry, Battle
 from ..utils import as_uuid
-from .scoring_service import try_finalize_after_submission
+from .scoring_service import try_finalize_after_submission, award_instant_winner_points
 from .matchmaker_service import run_matchmaking
 from .realtime_service import emit_submission_verdict, emit_round_finished, emit_leaderboard_updated, emit_match_found, emit_queue_updated
 
@@ -147,6 +147,12 @@ def apply_checker_result(payload):
     )
 
     if match_is_active:
+        instant_points_delta = 0
+        if became_accepted and participant:
+            instant_points_delta = int(award_instant_winner_points(match, participant.student_id) or 0)
+            if instant_points_delta > 0 and room:
+                emit_leaderboard_updated(room.battle_id)
+
         finalized = try_finalize_after_submission(match)
         if finalized:
             db.session.refresh(match)

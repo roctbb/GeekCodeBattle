@@ -42,6 +42,75 @@ def _callback_base_url():
     return request.host_url.rstrip("/")
 
 
+def _extract_visible_test_results(latest_submission):
+    results = []
+
+    def _parse_status(item):
+        if not isinstance(item, dict):
+            return None
+        if "ok" in item:
+            return bool(item.get("ok"))
+        if "passed" in item:
+            return bool(item.get("passed"))
+        if "status" in item:
+            return str(item.get("status")).lower() in {"ok", "pass", "passed", "success"}
+        return None
+
+    def _parse_actual_output(item):
+        if not isinstance(item, dict):
+            return None
+        for key in ("actual_output", "actual", "output", "stdout", "got", "received", "result", "answer", "user_output"):
+            if key not in item:
+                continue
+            value = item.get(key)
+            if value is None:
+                continue
+            if isinstance(value, (dict, list)):
+                return json.dumps(value, ensure_ascii=False)
+            return str(value)
+        return None
+
+    if latest_submission and latest_submission.checker_comment_raw:
+        try:
+            parsed_comment = json.loads(latest_submission.checker_comment_raw)
+            raw_visible = []
+            if isinstance(parsed_comment, dict):
+                raw_visible = (
+                    parsed_comment.get("visible_tests")
+                    or parsed_comment.get("tests")
+                    or parsed_comment.get("details")
+                    or []
+                )
+            elif isinstance(parsed_comment, list):
+                raw_visible = parsed_comment
+
+            if isinstance(raw_visible, list):
+                for item in raw_visible:
+                    if isinstance(item, dict):
+                        results.append(
+                            {
+                                "passed": _parse_status(item),
+                                "actual": _parse_actual_output(item),
+                            }
+                        )
+                    else:
+                        results.append({"passed": None, "actual": None})
+        except Exception:
+            results = []
+
+    if (
+        not results
+        and latest_submission
+        and latest_submission.visible_tests_total is not None
+        and latest_submission.visible_tests_passed is not None
+    ):
+        total = max(0, int(latest_submission.visible_tests_total))
+        passed = max(0, min(total, int(latest_submission.visible_tests_passed)))
+        results = [{"passed": True, "actual": None}] * passed + [{"passed": False, "actual": None}] * (total - passed)
+
+    return results
+
+
 @rooms_bp.get("/rooms/<room_id>")
 @login_required
 def get_room(room_id):
@@ -64,42 +133,7 @@ def get_room(room_id):
     if match:
         latest_submission = rooms_service.get_latest_submission(match.id, session["user_id"])
 
-    visible_test_statuses = []
-    if latest_submission and latest_submission.checker_comment_raw:
-        try:
-            parsed_comment = json.loads(latest_submission.checker_comment_raw)
-            if isinstance(parsed_comment, dict):
-                raw_visible = (
-                    parsed_comment.get("visible_tests")
-                    or parsed_comment.get("tests")
-                    or parsed_comment.get("details")
-                    or []
-                )
-                if isinstance(raw_visible, list):
-                    for item in raw_visible:
-                        if not isinstance(item, dict):
-                            visible_test_statuses.append(None)
-                            continue
-                        if "ok" in item:
-                            visible_test_statuses.append(bool(item.get("ok")))
-                        elif "passed" in item:
-                            visible_test_statuses.append(bool(item.get("passed")))
-                        elif "status" in item:
-                            visible_test_statuses.append(str(item.get("status")).lower() in {"ok", "pass", "passed", "success"})
-                        else:
-                            visible_test_statuses.append(None)
-        except Exception:
-            visible_test_statuses = []
-
-    if (
-        not visible_test_statuses
-        and latest_submission
-        and latest_submission.visible_tests_total is not None
-        and latest_submission.visible_tests_passed is not None
-    ):
-        total = max(0, int(latest_submission.visible_tests_total))
-        passed = max(0, min(total, int(latest_submission.visible_tests_passed)))
-        visible_test_statuses = [True] * passed + [False] * (total - passed)
+    visible_test_results = _extract_visible_test_results(latest_submission)
 
     public_tests = []
     if task and isinstance(task.config_json, dict):
@@ -112,7 +146,16 @@ def get_room(room_id):
                     {
                         "input": str(item.get("input", "")),
                         "expected": str(item.get("expected", "")),
-                        "passed": visible_test_statuses[idx] if idx < len(visible_test_statuses) else None,
+                        "passed": (
+                            visible_test_results[idx].get("passed")
+                            if idx < len(visible_test_results)
+                            else None
+                        ),
+                        "actual": (
+                            visible_test_results[idx].get("actual")
+                            if idx < len(visible_test_results)
+                            else None
+                        ),
                     }
                 )
 

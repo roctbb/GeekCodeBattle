@@ -8,6 +8,7 @@ from ..extensions import db
 from ..models import Match, MatchParticipant, Room, User, ScoreEvent, RatingHistory, QueueEntry
 
 K_FACTOR = 24
+INSTANT_WIN_REASON = "match_instant_win"
 
 
 RESULT_ORDER = {
@@ -191,6 +192,68 @@ def try_finalize_after_submission(match: Match):
     return False
 
 
+def award_instant_winner_points(match: Match, student_id) -> int:
+    if match is None or student_id is None:
+        return 0
+
+    locked_match = (
+        db.session.query(Match)
+        .filter(Match.id == match.id)
+        .with_for_update()
+        .first()
+    )
+    if locked_match is None or locked_match.finished_at is not None:
+        return 0
+
+    participants = (
+        db.session.query(MatchParticipant)
+        .filter(MatchParticipant.match_id == locked_match.id)
+        .with_for_update()
+        .all()
+    )
+    winner, _, winners = get_winner_info(participants)
+    if winner is None or len(winners) != 1 or str(winner.student_id) != str(student_id):
+        return 0
+
+    existing = (
+        db.session.query(ScoreEvent.id)
+        .filter(
+            ScoreEvent.match_id == locked_match.id,
+            ScoreEvent.student_id == winner.student_id,
+            ScoreEvent.reason == INSTANT_WIN_REASON,
+        )
+        .limit(1)
+        .first()
+    )
+    if existing:
+        return 0
+
+    user = (
+        db.session.query(User)
+        .filter(User.id == winner.student_id)
+        .with_for_update()
+        .first()
+    )
+    if user is None:
+        return 0
+
+    progress = float(winner.progress or 0)
+    points_delta, _ = _points_for_result("win", progress, user)
+    user.season_points = max(0, user.season_points + points_delta)
+    _apply_streaks(user, "win")
+    db.session.add(
+        ScoreEvent(
+            match_id=locked_match.id,
+            student_id=user.id,
+            points_delta=points_delta,
+            rating_delta=0,
+            reason=INSTANT_WIN_REASON,
+        )
+    )
+    db.session.commit()
+    return points_delta
+
+
 def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
     locked_match = (
         db.session.query(Match)
@@ -225,7 +288,10 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
         is not None
     ) or (
         db.session.query(ScoreEvent.id)
-        .filter(ScoreEvent.match_id == locked_match.id)
+        .filter(
+            ScoreEvent.match_id == locked_match.id,
+            ScoreEvent.reason.like("match_finalize:%"),
+        )
         .limit(1)
         .first()
         is not None
@@ -297,6 +363,17 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
             raw_rating_delta[b.student_id] += K_FACTOR * (sb - eb)
 
     norm = max(1, len(participants) - 1)
+    instant_win_student_ids = {
+        student_id
+        for (student_id,) in (
+            db.session.query(ScoreEvent.student_id)
+            .filter(
+                ScoreEvent.match_id == locked_match.id,
+                ScoreEvent.reason == INSTANT_WIN_REASON,
+            )
+            .all()
+        )
+    }
 
     for p in participants:
         user = users[p.student_id]
@@ -306,10 +383,14 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
         old_rating = user.rating
         user.rating = max(0, user.rating + rating_delta)
 
-        progress = float(p.progress or 0)
-        points_delta, _ = _points_for_result(p.result_type or "no_result", progress, user)
-        user.season_points = max(0, user.season_points + points_delta)
-        _apply_streaks(user, p.result_type or "no_result")
+        points_delta = 0
+        if (p.student_id in instant_win_student_ids) and ((p.result_type or "no_result") == "win"):
+            points_delta = 0
+        else:
+            progress = float(p.progress or 0)
+            points_delta, _ = _points_for_result(p.result_type or "no_result", progress, user)
+            user.season_points = max(0, user.season_points + points_delta)
+            _apply_streaks(user, p.result_type or "no_result")
 
         db.session.add(
             RatingHistory(
