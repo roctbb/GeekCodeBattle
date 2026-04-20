@@ -1,10 +1,11 @@
 from flask import Blueprint, request, session
+from sqlalchemy import and_
 
 from ..api.responses import ok, fail
 from ..api.serializers import battle_out, task_out, task_package_out
 from ..auth import login_required, role_required
 from ..services import battles_service, matchmaker_service, realtime_service, presence_runtime
-from ..models import MatchParticipant, Match, Room, User
+from ..models import MatchParticipant, Match, Room, User, ScoreEvent
 from ..extensions import db
 
 
@@ -154,14 +155,29 @@ def leaderboard(battle_id):
         return fail("Not found", 404)
     battles_service.tick_timeouts(battle)
 
+    battle_points_expr = db.func.coalesce(db.func.sum(ScoreEvent.points_delta), 0)
     rows = (
-        db.session.query(User.id, User.name, User.rating, User.season_points, User.win_streak, User.loss_streak)
+        db.session.query(
+            User.id,
+            User.name,
+            User.rating,
+            battle_points_expr.label("battle_points"),
+            User.win_streak,
+            User.loss_streak,
+        )
         .join(MatchParticipant, MatchParticipant.student_id == User.id)
         .join(Match, Match.id == MatchParticipant.match_id)
         .join(Room, Room.id == Match.room_id)
-        .filter(Room.battle_id == battle.id)
-        .group_by(User.id, User.name, User.rating, User.season_points, User.win_streak, User.loss_streak)
-        .order_by(User.season_points.desc(), User.rating.desc())
+        .outerjoin(
+            ScoreEvent,
+            and_(
+                ScoreEvent.match_id == Match.id,
+                ScoreEvent.student_id == User.id,
+            ),
+        )
+        .filter(Room.battle_id == battle.id, User.role == "student")
+        .group_by(User.id, User.name, User.rating, User.win_streak, User.loss_streak)
+        .order_by(battle_points_expr.desc(), User.rating.desc())
         .all()
     )
     return ok(
@@ -172,7 +188,8 @@ def leaderboard(battle_id):
                     "user_id": str(row[0]),
                     "name": row[1],
                     "rating": row[2],
-                    "season_points": row[3],
+                    "season_points": int(row[3] or 0),
+                    "battle_points": int(row[3] or 0),
                     "win_streak": row[4],
                     "loss_streak": row[5],
                     "is_online": presence_runtime.is_online(str(row[0])),

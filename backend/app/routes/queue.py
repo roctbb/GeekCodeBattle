@@ -2,7 +2,7 @@ from flask import Blueprint, session
 from sqlalchemy import or_
 
 from ..api.responses import ok, fail
-from ..auth import login_required
+from ..auth import login_required, role_required
 from ..services import queue_service, matchmaker_service, realtime_service, presence_runtime
 from ..models import QueueEntry, User, MatchParticipant, Match, Room
 from ..extensions import db
@@ -97,7 +97,7 @@ def queue_state(battle_id):
 
 
 @queue_bp.post("/battles/<battle_id>/queue/join")
-@login_required
+@role_required("student")
 def queue_join(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
@@ -109,7 +109,7 @@ def queue_join(battle_id):
 
 
 @queue_bp.post("/battles/<battle_id>/queue/leave")
-@login_required
+@role_required("student")
 def queue_leave(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
@@ -121,7 +121,7 @@ def queue_leave(battle_id):
 
 
 @queue_bp.post("/battles/<battle_id>/queue/ready")
-@login_required
+@role_required("student")
 def queue_ready(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:

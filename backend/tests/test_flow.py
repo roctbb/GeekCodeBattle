@@ -73,6 +73,87 @@ def test_queue_state_endpoint(app):
     assert len(data['entries']) == 1
 
 
+def test_teacher_cannot_use_student_queue_actions(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-no-queue', 'TeacherNoQueue', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    join_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/join')
+    ready_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/ready')
+    leave_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/leave')
+    my_room_r = teacher.get(f'/api/v1/battles/{battle_id}/my-room')
+
+    assert join_r.status_code == 403
+    assert ready_r.status_code == 403
+    assert leave_r.status_code == 403
+    assert my_room_r.status_code == 403
+
+
+def test_leaderboard_uses_battle_points_not_global_season_points(app):
+    from app.extensions import db
+    from app.models import User
+    from app.utils import as_uuid
+
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-board-scope', 'TeacherBoardScope', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    s1_user = login_dev(s1, 'board-scope-s1', 'BoardScopeS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'board-scope-s2', 'BoardScopeS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    teacher.get(f'/api/v1/battles/{battle_id}')
+
+    room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert room_id is not None
+
+    with app.app_context():
+        student = db.session.get(User, as_uuid(s1_user['id']))
+        assert student is not None
+        student.season_points = 700
+        db.session.commit()
+
+    leaderboard = teacher.get(f'/api/v1/battles/{battle_id}/leaderboard')
+    assert leaderboard.status_code == 200
+    rows = leaderboard.get_json()['participants']
+    by_user = {row['user_id']: row for row in rows}
+    assert by_user[s1_user['id']]['season_points'] == 0
+    assert by_user[s1_user['id']]['battle_points'] == 0
+
+
+def test_matchmaking_runs_after_delay_on_tick_without_second_ready(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-mm-tick', 'TeacherMMTick', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'mm-tick-s1', 'MMTickS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'mm-tick-s2', 'MMTickS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    before_tick_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    assert before_tick_room['room_id'] is None
+
+    time.sleep(1.1)
+    # Any endpoint calling tick_timeouts should be enough to create delayed rooms.
+    assert teacher.get(f'/api/v1/battles/{battle_id}').status_code == 200
+
+    after_tick_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    assert after_tick_room['room_id'] is not None
+
+
 def test_rejudge_requires_all_participants(app):
     teacher = app.test_client()
     login_dev(teacher, 'teacher-r', 'Teacher', 'teacher')

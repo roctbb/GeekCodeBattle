@@ -237,7 +237,9 @@ def tick_timeouts(battle):
         winner, _, _ = get_winner_info(participants)
         if winner is not None:
             if try_finalize_after_submission(match):
+                db.session.refresh(match)
                 finalized_count += 1
+                finalized_match_ids.append((match.id, match.finished_by or "accepted"))
             continue
 
         match_created_at = match.created_at
@@ -248,14 +250,16 @@ def tick_timeouts(battle):
             finalized_count += 1
             finalized_match_ids.append((match.id, "timeout"))
 
+    from . import realtime_service, matchmaker_service
     if finalized_match_ids:
-        from . import realtime_service, matchmaker_service
-
         realtime_service.emit_leaderboard_updated(battle.id)
         realtime_service.emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
         for match_id, finished_by in finalized_match_ids:
             realtime_service.emit_round_finished(match_id, finished_by)
-        created_rooms = matchmaker_service.run_matchmaking(battle.id)
+    created_rooms = matchmaker_service.run_matchmaking(battle.id)
+    if created_rooms:
+        if not finalized_match_ids:
+            realtime_service.emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
         for room_info in created_rooms:
             realtime_service.emit_match_found(room_info)
 

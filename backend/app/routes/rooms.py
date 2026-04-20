@@ -6,7 +6,7 @@ from flask import Blueprint, request, session, current_app
 from ..api.responses import ok, fail
 from ..api.serializers import participant_out
 from ..api.validators import VALID_LANGUAGES
-from ..auth import login_required
+from ..auth import login_required, role_required
 from ..services import rooms_service, realtime_service
 from ..services.scoring_service import get_winner_info, try_finalize_after_submission
 from ..services.matchmaker_service import run_matchmaking
@@ -182,7 +182,7 @@ def get_room(room_id):
 
 
 @rooms_bp.get("/battles/<battle_id>/my-room")
-@login_required
+@role_required("student")
 def my_room(battle_id):
     room = rooms_service.find_active_room_for_user(battle_id, session["user_id"])
     if not room:
@@ -192,7 +192,7 @@ def my_room(battle_id):
 
 
 @rooms_bp.post("/rooms/<room_id>/submit")
-@login_required
+@role_required("student")
 def submit(room_id):
     room = rooms_service.get_room_or_none(room_id)
     if not room:
@@ -257,7 +257,7 @@ def submit(room_id):
 
 
 @rooms_bp.post("/rooms/<room_id>/surrender")
-@login_required
+@role_required("student")
 def surrender(room_id):
     room = rooms_service.get_room_or_none(room_id)
     if not room:

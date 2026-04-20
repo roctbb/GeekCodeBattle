@@ -54,6 +54,19 @@
         </div>
       </div>
 
+      <section class="bonus-rules mb-4" aria-label="Правила бонусов">
+        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
+          <h3 class="h6 mb-0">Правила бонусов</h3>
+          <span class="bonus-cap">Лимит: +30 за раунд</span>
+        </div>
+        <ul class="bonus-rule-list mb-0">
+          <li>2 победы подряд: <strong>+10</strong></li>
+          <li>3 победы подряд: <strong>+20</strong></li>
+          <li>4+ побед подряд: <strong>+30</strong></li>
+          <li>Победа после 3+ поражений подряд: <strong>+20</strong></li>
+        </ul>
+      </section>
+
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
         <h3 class="h6 mb-0">Таблица лобби</h3>
         <small class="text-muted">Позиция считается по очкам и рейтингу</small>
@@ -73,7 +86,7 @@
                 <span class="presence-dot" :class="p.is_online ? 'online' : 'offline'"></span>
               </span>
               <span class="badge" :class="statusClass(p.status)">{{ statusLabel(p.status) }}</span>
-              <span v-if="p.win_streak >= 2" class="badge text-bg-warning">бонус x{{ p.win_streak }}</span>
+              <span v-if="streakBonus(p.win_streak) > 0" class="badge text-bg-warning">серия +{{ streakBonus(p.win_streak) }}</span>
             </div>
             <div class="text-end">
               <div class="fw-semibold">{{ p.season_points }} очк.</div>
@@ -153,6 +166,14 @@ function statusClass(status) {
   if (status === 'fighting') return 'text-bg-primary'
   if (status === 'ready') return 'text-bg-success'
   return 'text-bg-secondary'
+}
+
+function streakBonus(streakRaw) {
+  const streak = Number(streakRaw || 0)
+  if (streak >= 4) return 30
+  if (streak === 3) return 20
+  if (streak === 2) return 10
+  return 0
 }
 
 function shortId(id) {
@@ -245,6 +266,35 @@ function shortId(id) {
 .my-ready-hint {
   margin-top: 0.35rem;
   font-weight: 600;
+}
+
+.bonus-rules {
+  border: 1px solid #dbe5f9;
+  border-radius: 12px;
+  background:
+    linear-gradient(160deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 252, 255, 0.94) 100%),
+    radial-gradient(circle at 100% 0%, rgba(14, 165, 164, 0.13), rgba(14, 165, 164, 0) 42%);
+  padding: 0.78rem 0.9rem;
+}
+
+.bonus-cap {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 0.2rem 0.55rem;
+  font-size: 0.72rem;
+  font-weight: 700;
+  border: 1px solid #d6e2fc;
+  background: #edf3ff;
+  color: #234794;
+}
+
+.bonus-rule-list {
+  padding-left: 1.05rem;
+}
+
+.bonus-rule-list li + li {
+  margin-top: 0.2rem;
 }
 
 .scoreboard-list {

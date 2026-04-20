@@ -192,22 +192,43 @@ def try_finalize_after_submission(match: Match):
 
 
 def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
-    if match.finished_at is not None:
+    locked_match = (
+        db.session.query(Match)
+        .filter(Match.id == match.id)
+        .with_for_update()
+        .first()
+    )
+    if locked_match is None:
         return match
+    if locked_match.finished_at is not None:
+        return locked_match
 
-    participants = MatchParticipant.query.filter_by(match_id=match.id).all()
+    participants = (
+        db.session.query(MatchParticipant)
+        .filter(MatchParticipant.match_id == locked_match.id)
+        .with_for_update()
+        .all()
+    )
     if not participants:
-        match.finished_by = finished_by
-        match.finished_at = datetime.now(timezone.utc)
+        locked_match.finished_by = finished_by
+        locked_match.finished_at = datetime.now(timezone.utc)
         db.session.commit()
-        return match
+        return locked_match
 
     _resolve_results(participants, finished_by)
 
-    users = {
-        p.student_id: db.session.get(User, p.student_id)
-        for p in participants
-    }
+    user_ids = list({p.student_id for p in participants})
+    users = {}
+    if user_ids:
+        users = {
+            user.id: user
+            for user in (
+                db.session.query(User)
+                .filter(User.id.in_(user_ids))
+                .with_for_update()
+                .all()
+            )
+        }
 
     # Pairwise Elo aggregation.
     raw_rating_delta = {p.student_id: 0.0 for p in participants}
@@ -244,14 +265,14 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
         db.session.add(
             RatingHistory(
                 user_id=user.id,
-                match_id=match.id,
+                match_id=locked_match.id,
                 old_rating=old_rating,
                 new_rating=user.rating,
             )
         )
         db.session.add(
             ScoreEvent(
-                match_id=match.id,
+                match_id=locked_match.id,
                 student_id=user.id,
                 points_delta=points_delta,
                 rating_delta=rating_delta,
@@ -259,10 +280,10 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
             )
         )
 
-    match.finished_by = finished_by
-    match.finished_at = datetime.now(timezone.utc)
+    locked_match.finished_by = finished_by
+    locked_match.finished_at = datetime.now(timezone.utc)
 
-    room = db.session.get(Room, match.room_id)
+    room = db.session.get(Room, locked_match.room_id)
     if room and room.status != "finished":
         room.status = "finished"
         room.finished_at = datetime.now(timezone.utc)
@@ -284,4 +305,4 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
                     existing.is_ready = False
 
     db.session.commit()
-    return match
+    return locked_match
