@@ -98,6 +98,16 @@
                 </div>
                 <small class="text-muted">{{ formatDate(s.created_at) }} · тесты {{ testsText(s) }}</small>
               </div>
+              <div class="d-flex justify-content-end mb-2">
+                <button
+                  class="btn btn-sm btn-outline-primary action-btn action-btn-sm"
+                  :disabled="isRechecking(s.submission_id)"
+                  @click="$emit('recheck-submission', { matchId: match.match_id, submissionId: s.submission_id })"
+                >
+                  <span v-if="isRechecking(s.submission_id)">Отправляем...</span>
+                  <span v-else>Отправить на перепроверку</span>
+                </button>
+              </div>
               <details class="code-details">
                 <summary>Показать код</summary>
                 <pre class="code-view mt-2 mb-0">{{ s.source_code || '' }}</pre>
@@ -116,10 +126,11 @@
 import { computed } from 'vue'
 
 const props = defineProps({
-  roomLog: { type: Object, default: null }
+  roomLog: { type: Object, default: null },
+  recheckingSubmissionIds: { type: Array, default: () => [] }
 })
 
-defineEmits(['back'])
+defineEmits(['back', 'recheck-submission'])
 
 const matches = computed(() => (props.roomLog?.matches || []))
 const roomSummary = computed(() => {
@@ -194,6 +205,10 @@ function participantSubmissionsCount(match, studentId) {
 function isParticipantOffline(participant) {
   if (participant?.is_online === false) return true
   return Boolean(participant?.is_disconnected)
+}
+
+function isRechecking(submissionId) {
+  return props.recheckingSubmissionIds.includes(submissionId)
 }
 </script>
 

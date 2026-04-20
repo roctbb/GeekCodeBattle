@@ -208,6 +208,34 @@ def battle_submission(battle_id, submission_id):
     return ok(data)
 
 
+@battles_bp.post("/battles/<battle_id>/submissions/<submission_id>/recheck")
+@role_required("teacher", "admin")
+def battle_submission_recheck(battle_id, submission_id):
+    battle = battles_service.get_battle_or_none(battle_id)
+    if not battle:
+        return fail("Not found", 404)
+
+    callback_url = request.host_url.rstrip("/") + "/api/v1/integrations/geekpaste/callback"
+    result, err = battles_service.recheck_battle_submission(
+        battle_id=battle.id,
+        submission_id=submission_id,
+        callback_url=callback_url,
+    )
+    if err == "submission_not_found":
+        return fail("Submission not found in battle", 404)
+    if err == "checker_submit_failed":
+        return fail("Failed to submit to checker", 502)
+
+    return ok(
+        {
+            "submission_id": str(result["submission"].id),
+            "status": "queued",
+            "external": result["external"],
+        },
+        202,
+    )
+
+
 @battles_bp.get("/battles/<battle_id>/tasks")
 @login_required
 def battle_tasks(battle_id):

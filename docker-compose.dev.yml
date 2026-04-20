@@ -27,11 +27,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: change-me
       GEEKCLASS_HOST: https://codingprojects.ru
+      BACKEND_URL: http://localhost:8086
       GEEKPASTE_API_URL: http://paste:8084/api/external/check
       GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
       GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
       GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
       GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
       CELERY_ENABLED: "true"
       CELERY_BROKER_URL: "redis://redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://redis:6379/0"
@@ -59,11 +61,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: change-me
       GEEKCLASS_HOST: https://codingprojects.ru
+      BACKEND_URL: http://localhost:8086
       GEEKPASTE_API_URL: http://paste:8084/api/external/check
       GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
       GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
       GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
       GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
       CELERY_ENABLED: "true"
       CELERY_BROKER_URL: "redis://redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://redis:6379/0"
@@ -89,11 +93,13 @@ services:
       REDIS_URL: redis://redis:6379/0
       JWT_SECRET: change-me
       GEEKCLASS_HOST: https://codingprojects.ru
+      BACKEND_URL: http://localhost:8086
       GEEKPASTE_API_URL: http://paste:8084/api/external/check
       GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
       GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
       GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
       GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
+      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
       CELERY_ENABLED: "true"
       CELERY_BROKER_URL: "redis://redis:6379/0"
       CELERY_RESULT_BACKEND: "redis://redis:6379/0"

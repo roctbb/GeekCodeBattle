@@ -1,5 +1,6 @@
 import time
 from datetime import datetime, timezone, timedelta
+from uuid import UUID
 
 
 def login_dev(client, external_id, name, role):
@@ -266,6 +267,124 @@ def test_grace_period_and_surrender_flow(app):
     assert by_user[s1_user['id']]['result_type'] in {'win', 'draw'}
     assert by_user[s2_user['id']]['result_type'] == 'loss'
 
+
+def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-timeout', 'Teacher', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'timeout-s1', 'TimeoutS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'timeout-s2', 'TimeoutS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    my_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    room_id = my_room['room_id']
+    assert room_id is not None
+
+    submit_r = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert submit_r.status_code == 202
+    submission_id = submit_r.get_json()['submission_id']
+
+    with app.app_context():
+        from app.extensions import db
+        from app.models import Submission
+
+        submission = db.session.get(Submission, UUID(submission_id))
+        assert submission is not None
+        submission.created_at = datetime.now(timezone.utc) - timedelta(minutes=4)
+        db.session.commit()
+
+    room_r = s1.get(f'/api/v1/rooms/{room_id}')
+    assert room_r.status_code == 200
+
+    submission_r = teacher.get(f'/api/v1/battles/{battle_id}/submissions/{submission_id}')
+    assert submission_r.status_code == 200
+    assert submission_r.get_json()['verdict'] == 'wrong_answer'
+
+    callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
+        'callback_id': submission_id,
+        'status': 'success',
+        'points': 1,
+        'max_points': 1,
+        'visible_tests_passed': 1,
+        'visible_tests_total': 1,
+    })
+    assert callback_r.status_code == 200
+
+    submission_after_callback = teacher.get(f'/api/v1/battles/{battle_id}/submissions/{submission_id}')
+    assert submission_after_callback.status_code == 200
+    assert submission_after_callback.get_json()['verdict'] == 'wrong_answer'
+
+
+def test_teacher_can_recheck_submission_from_room_log(app, monkeypatch):
+    job_counter = {'value': 0}
+
+    class _DummyResponse:
+        status_code = 200
+
+        def raise_for_status(self):
+            return None
+
+        def json(self):
+            job_counter['value'] += 1
+            return {'job_id': f'job-{job_counter["value"]}'}
+
+    def _fake_post(*args, **kwargs):
+        return _DummyResponse()
+
+    monkeypatch.setattr('app.services.checker.requests.post', _fake_post)
+
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-recheck', 'Teacher', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'recheck-s1', 'RecheckS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'recheck-s2', 'RecheckS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    my_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    room_id = my_room['room_id']
+    assert room_id is not None
+
+    submit_r = s1.post(f'/api/v1/rooms/{room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert submit_r.status_code == 202
+    original_submission_id = submit_r.get_json()['submission_id']
+
+    recheck_r = teacher.post(f'/api/v1/battles/{battle_id}/submissions/{original_submission_id}/recheck')
+    assert recheck_r.status_code == 202
+    recheck_payload = recheck_r.get_json()
+    assert recheck_payload['submission_id'] != original_submission_id
+    assert recheck_payload['status'] == 'queued'
+
+    room_log_r = teacher.get(f'/api/v1/battles/{battle_id}/rooms/{room_id}/logs')
+    assert room_log_r.status_code == 200
+    room_log_data = room_log_r.get_json()
+    first_match = room_log_data['matches'][0]
+    assert len(first_match['submissions']) >= 2
 
 def test_matchmaking_pairs_by_rating_and_uses_harder_tasks_for_stronger_group(app):
     from app.extensions import db

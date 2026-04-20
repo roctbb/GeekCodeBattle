@@ -87,6 +87,13 @@ def apply_checker_result(payload):
     submission = db.session.get(Submission, as_uuid(callback_id))
     if not submission:
         return None
+    if submission.verdict != "queued":
+        current_app.logger.info(
+            "checker_callback_ignored callback_id=%s current_verdict=%s",
+            callback_id,
+            submission.verdict,
+        )
+        return submission
 
     status = payload.get("status", "error")
     points = payload.get("points", 0) or 0
@@ -121,16 +128,18 @@ def apply_checker_result(payload):
     submission.hidden_tests_passed = _to_int_or_none(payload.get("hidden_tests_passed"))
     submission.hidden_tests_total = _to_int_or_none(payload.get("hidden_tests_total"))
 
-    participant = MatchParticipant.query.filter_by(match_id=submission.match_id, student_id=submission.student_id).first()
-    became_accepted = False
-    if participant:
-        participant.progress = max(float(participant.progress or 0), progress)
-        if submission.verdict == "accepted" and participant.accepted_at is None:
-            participant.accepted_at = db.func.now()
-            became_accepted = True
-
     match = db.session.get(Match, submission.match_id)
     room = db.session.get(Room, match.room_id) if match else None
+    match_is_active = bool(match and match.finished_at is None)
+    participant = None
+    became_accepted = False
+    if match_is_active:
+        participant = MatchParticipant.query.filter_by(match_id=submission.match_id, student_id=submission.student_id).first()
+        if participant:
+            participant.progress = max(float(participant.progress or 0), progress)
+            if submission.verdict == "accepted" and participant.accepted_at is None:
+                participant.accepted_at = db.func.now()
+                became_accepted = True
 
     db.session.commit()
     emit_submission_verdict(
@@ -143,7 +152,7 @@ def apply_checker_result(payload):
         visible_tests_total=submission.visible_tests_total,
     )
 
-    if match and match.finished_at is None:
+    if match_is_active:
         finalized = try_finalize_after_submission(match)
         if finalized:
             db.session.refresh(match)

@@ -22,11 +22,12 @@ def submit_for_check(callback_url: str, callback_id: str, code: str, lang: str, 
     }
     headers = {"Authorization": f"Bearer {_service_token()}"}
     current_app.logger.info(
-        "checker_submit_request callback_id=%s lang=%s check_type=%s api_url=%s",
+        "checker_submit_request callback_id=%s lang=%s check_type=%s api_url=%s callback_url=%s",
         callback_id,
         lang,
         check_type,
         current_app.config["GEEKPASTE_API_URL"],
+        callback_url,
     )
     response = requests.post(current_app.config["GEEKPASTE_API_URL"], json=payload, headers=headers, timeout=10)
     current_app.logger.info(

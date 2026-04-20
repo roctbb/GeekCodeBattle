@@ -6,6 +6,7 @@
       :teacher-page="teacherPage"
       @go-battles="goToBattlesPage"
       @go-packages="goToPackagesPage"
+      @go-play="goToPlayPage"
       @logout="logout"
     />
 
@@ -25,12 +26,14 @@
       />
 
       <template v-else>
-        <template v-if="isTeacher">
+        <template v-if="showTeacherConsole">
           <template v-if="teacherPage === 'battles'">
             <TeacherBattleRoomLogView
               v-if="isBattleRoomLogPage"
               :room-log="selectedBattleRoomLog"
+              :rechecking-submission-ids="recheckingSubmissionIds"
               @back="goToBattleDetailsPage"
+              @recheck-submission="recheckSubmissionFromRoomLog"
             />
 
             <TeacherBattleDetailsView
@@ -182,7 +185,7 @@
       <i class="bi" :class="audioEnabled ? 'bi-volume-up-fill' : 'bi-volume-mute-fill'" aria-hidden="true"></i>
     </button>
 
-    <section class="streak-chip" v-if="!isTeacher && streak > 1" aria-live="polite">
+    <section class="streak-chip" v-if="showPlayerUi && streak > 1" aria-live="polite">
       🔥 Серия x{{ streak }}
     </section>
 
@@ -227,6 +230,7 @@ const queue = reactive({ entries: [] })
 const leaderboard = reactive({ participants: [] })
 const battleLogs = ref([])
 const selectedBattleRoomLog = ref(null)
+const recheckingSubmissionIds = ref([])
 const taskPackages = ref([])
 const battleTasks = ref([])
 const battlePackages = ref([])
@@ -286,7 +290,14 @@ let audioCtx = null
 let unloadHandlersBound = false
 
 const isTeacher = computed(() => me.value && (me.value.role === 'teacher' || me.value.role === 'admin'))
-const teacherPage = computed(() => (route.path.startsWith('/packages') ? 'tasks' : 'battles'))
+const teacherPage = computed(() => {
+  if (route.path.startsWith('/packages')) return 'tasks'
+  if (route.path.startsWith('/play')) return 'play'
+  return 'battles'
+})
+const teacherPlayMode = computed(() => isTeacher.value && teacherPage.value === 'play')
+const showTeacherConsole = computed(() => isTeacher.value && !teacherPlayMode.value)
+const showPlayerUi = computed(() => !isTeacher.value || teacherPlayMode.value)
 const isBattleDetailsPage = computed(() => route.name === 'battle-details')
 const isBattleRoomLogPage = computed(() => route.name === 'battle-room-log')
 const isPackageDetailsPage = computed(() => route.name === 'package-details')
@@ -500,6 +511,10 @@ function goToPackagesPage() {
   if (route.path !== '/packages') router.push('/packages')
 }
 
+function goToPlayPage() {
+  if (route.path !== '/play') router.push('/play')
+}
+
 function toggleNewBattlePackage(packageId) {
   if (newBattlePackageIds.value.includes(packageId)) {
     newBattlePackageIds.value = newBattlePackageIds.value.filter((id) => id !== packageId)
@@ -510,6 +525,7 @@ function toggleNewBattlePackage(packageId) {
 
 async function openBattleDashboard(battleId) {
   selectedBattleRoomLog.value = null
+  recheckingSubmissionIds.value = []
   selectedBattleId.value = battleId
   await router.push(`/battles/${battleId}`)
 }
@@ -546,7 +562,7 @@ function setupSocket() {
         message: `${findParticipantName(payload.student_id)} отправил посылку на проверку`
       })
     }
-    if (isTeacher.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
+    if (showTeacherConsole.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
       await loadBattleLogs().catch(() => {})
       if (isBattleRoomLogPage.value) await loadSelectedBattleRoomLog().catch(() => {})
     }
@@ -581,7 +597,7 @@ function setupSocket() {
       })
     }
     await loadCurrentRoom()
-    if (isTeacher.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
+    if (showTeacherConsole.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
       await loadBattleLogs().catch(() => {})
       if (isBattleRoomLogPage.value) await loadSelectedBattleRoomLog().catch(() => {})
     }
@@ -596,7 +612,7 @@ function setupSocket() {
     playSound('round_end')
     await syncData()
 
-    if (!isTeacher.value && meId) {
+    if (showPlayerUi.value && meId) {
       const afterRank = leaderboard.participants.findIndex((p) => p.user_id === meId) + 1
       const afterPoints = Number((leaderboard.participants.find((p) => p.user_id === meId)?.season_points ?? 0))
       const delta = Number.isFinite(beforePoints) ? afterPoints - beforePoints : 0
@@ -621,7 +637,7 @@ function setupSocket() {
     if (myRoom.room_id) {
       await loadCurrentRoom().catch(() => {})
     }
-    if (isTeacher.value && isBattleRoomLogPage.value) {
+    if (showTeacherConsole.value && isBattleRoomLogPage.value) {
       await loadSelectedBattleRoomLog().catch(() => {})
     }
   })
@@ -727,6 +743,7 @@ async function logout() {
   roundOverlay.visible = false
   clearGraceRefreshTimer()
   selectedBattleRoomLog.value = null
+  recheckingSubmissionIds.value = []
   initialSyncDone.value = true
   if (socket) {
     socket.disconnect()
@@ -746,7 +763,7 @@ async function loadMe() {
 async function loadBattles() {
   const { data } = await api.get('/battles')
   battles.value = data
-  if (isTeacher.value && !selectedBattleId.value && battles.value.length) {
+  if (showTeacherConsole.value && !selectedBattleId.value && battles.value.length) {
     selectedBattleId.value = battles.value[0].id
   }
 }
@@ -765,7 +782,7 @@ async function createBattle() {
 
 async function selectBattle(id) {
   selectedBattleId.value = id
-  if (!myRoom.room_id || isTeacher.value) await loadBattleContext()
+  if (!myRoom.room_id || showTeacherConsole.value) await loadBattleContext()
   subscribeSocket()
 }
 
@@ -885,7 +902,7 @@ async function loadLeaderboard(battleId = selectedBattleId.value) {
     const current = leaderboard.participants.find((p) => p.user_id === meId)
     const currentPoints = Number(current?.season_points ?? 0)
     leaderboardPointsMemo[`${battleId}:${meId}`] = currentPoints
-    if (!isTeacher.value && Number.isFinite(previousPoints) && currentPoints > previousPoints) {
+    if (showPlayerUi.value && Number.isFinite(previousPoints) && currentPoints > previousPoints) {
       const delta = currentPoints - previousPoints
       notify(`Бонус: +${delta} очк.`, 'bonus', {
         burst: true,
@@ -897,7 +914,7 @@ async function loadLeaderboard(battleId = selectedBattleId.value) {
 }
 
 async function loadBattleLogs() {
-  if (!selectedBattleId.value || !isTeacher.value) return
+  if (!selectedBattleId.value || !showTeacherConsole.value) return
   const { data } = await api.get(`/battles/${selectedBattleId.value}/logs`)
   battleLogs.value = Array.isArray(data) ? data : []
 }
@@ -916,12 +933,30 @@ async function goToBattleDetailsPage() {
 }
 
 async function loadSelectedBattleRoomLog(roomId = route.params.roomId ? String(route.params.roomId) : null) {
-  if (!selectedBattleId.value || !roomId || !isTeacher.value) {
+  if (!selectedBattleId.value || !roomId || !showTeacherConsole.value) {
     selectedBattleRoomLog.value = null
     return
   }
   const { data } = await api.get(`/battles/${selectedBattleId.value}/rooms/${roomId}/logs`)
   selectedBattleRoomLog.value = data || null
+}
+
+async function recheckSubmissionFromRoomLog(payload) {
+  const submissionId = payload?.submissionId
+  if (!selectedBattleId.value || !submissionId) return
+  if (recheckingSubmissionIds.value.includes(submissionId)) return
+
+  recheckingSubmissionIds.value = [...recheckingSubmissionIds.value, submissionId]
+  try {
+    await api.post(`/battles/${selectedBattleId.value}/submissions/${submissionId}/recheck`)
+    notify('Посылка отправлена на перепроверку', 'success')
+    await loadSelectedBattleRoomLog().catch(() => {})
+    await loadBattleLogs().catch(() => {})
+  } catch {
+    notify('Не удалось отправить посылку на перепроверку', 'error')
+  } finally {
+    recheckingSubmissionIds.value = recheckingSubmissionIds.value.filter((id) => id !== submissionId)
+  }
 }
 
 async function loadTaskPackages() {
@@ -959,7 +994,7 @@ async function loadCurrentRoom() {
 }
 
 async function detectStudentActiveRoom() {
-  if (!me.value || isTeacher.value) return false
+  if (!me.value || !showPlayerUi.value) return false
   for (const battle of battles.value) {
     const { data } = await api.get(`/battles/${battle.id}/my-room`)
     if (data.room_id) {
@@ -986,7 +1021,7 @@ async function detectStudentActiveRoom() {
 }
 
 async function detectStudentJoinedBattle() {
-  if (!me.value || isTeacher.value) return false
+  if (!me.value || !showPlayerUi.value) return false
 
   const candidateBattleIds = []
   if (studentJoinedBattleId.value) {
@@ -1040,15 +1075,15 @@ async function surrenderRound() {
 async function loadBattleContext() {
   if (!selectedBattleId.value) return
   const jobs = [loadQueue(), loadLeaderboard(), loadBattleTasks(), loadBattlePackages()]
-  if (isTeacher.value) jobs.push(loadBattleLogs())
-  if (isTeacher.value && isBattleRoomLogPage.value) jobs.push(loadSelectedBattleRoomLog())
+  if (showTeacherConsole.value) jobs.push(loadBattleLogs())
+  if (showTeacherConsole.value && isBattleRoomLogPage.value) jobs.push(loadSelectedBattleRoomLog())
   await Promise.all(jobs)
 }
 
 async function syncData() {
   await loadBattles()
 
-  if (isTeacher.value) {
+  if (showTeacherConsole.value) {
     await loadTaskPackages()
     if ((isBattleDetailsPage.value || isBattleRoomLogPage.value) && selectedBattleId.value) await loadBattleContext()
     return
@@ -1258,12 +1293,18 @@ watch(
   async () => {
     if (!authResolved.value) return
 
-    if (me.value && !isTeacher.value && (route.path.startsWith('/packages') || route.path.startsWith('/battles'))) {
+    if (me.value && !isTeacher.value && (route.path.startsWith('/packages') || route.path.startsWith('/battles') || route.path.startsWith('/play'))) {
       router.push('/')
       return
     }
 
     if (!isTeacher.value) return
+
+    if (teacherPlayMode.value) {
+      await syncData().catch(() => {})
+      subscribeSocket()
+      return
+    }
 
     if (route.name === 'battle-details') {
       const routeBattleId = route.params.battleId ? String(route.params.battleId) : null

@@ -21,6 +21,8 @@ from ..models import (
 from ..utils import as_uuid
 from .scoring_service import finalize_match
 from .scoring_service import try_finalize_after_submission, get_winner_info
+from . import rooms_service
+from . import realtime_service
 
 
 def list_battles():
@@ -215,6 +217,8 @@ def tick_timeouts(battle):
     finalized_count = 0
     finalized_match_ids = []
     for match in active_matches:
+        rooms_service.expire_stale_submissions(match.id, battle_id=battle.id)
+
         participants = MatchParticipant.query.filter_by(match_id=match.id).all()
         if participants and all(bool(p.is_disconnected) for p in participants):
             last_disconnect_at = max(
@@ -531,3 +535,48 @@ def get_battle_submission_or_none(battle_id, submission_id):
         "visible_tests_total": submission.visible_tests_total,
         "source_code": submission.source_code,
     }
+
+
+def recheck_battle_submission(*, battle_id, submission_id, callback_url):
+    row = (
+        db.session.query(Submission, Match, Room, Task)
+        .join(Match, Match.id == Submission.match_id)
+        .join(Room, Room.id == Match.room_id)
+        .join(Task, Task.id == Match.task_id)
+        .filter(Submission.id == as_uuid(submission_id), Room.battle_id == as_uuid(battle_id))
+        .first()
+    )
+    if not row:
+        return None, "submission_not_found"
+
+    original_submission, match, room, task = row
+    cloned = rooms_service.create_submission(
+        match_id=original_submission.match_id,
+        student_id=original_submission.student_id,
+        language=original_submission.language,
+        source_code=original_submission.source_code,
+    )
+    realtime_service.emit_submission_queued(match.id, cloned.student_id, battle_id=room.battle_id)
+
+    try:
+        external = rooms_service.submit_to_checker(
+            submission=cloned,
+            callback_url=callback_url,
+            task_text=(task.statement_md if task else ""),
+            check_type=(task.check_type if task else "tests"),
+            check_config=(task.config_json if task else {}),
+        )
+    except Exception as exc:
+        rooms_service.mark_submission_checker_error(cloned, exc)
+        realtime_service.emit_submission_verdict(
+            match.id,
+            cloned.student_id,
+            "internal_error",
+            0,
+            battle_id=room.battle_id,
+            visible_tests_passed=0,
+            visible_tests_total=None,
+        )
+        return cloned, "checker_submit_failed"
+
+    return {"submission": cloned, "external": external}, None

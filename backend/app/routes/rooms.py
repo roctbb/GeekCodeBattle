@@ -24,6 +24,13 @@ def _emit_finalize_side_effects(match, battle_id):
         realtime_service.emit_match_found(room_info)
 
 
+def _callback_base_url():
+    explicit_backend_url = str(current_app.config.get("BACKEND_URL") or "").strip()
+    if explicit_backend_url:
+        return explicit_backend_url.rstrip("/")
+    return request.host_url.rstrip("/")
+
+
 @rooms_bp.get("/rooms/<room_id>")
 @login_required
 def get_room(room_id):
@@ -33,6 +40,7 @@ def get_room(room_id):
 
     match = rooms_service.get_last_match(room.id)
     if match and match.finished_at is None:
+        rooms_service.expire_stale_submissions(match.id, battle_id=room.battle_id)
         finalized = try_finalize_after_submission(match)
         if finalized:
             db.session.refresh(match)
@@ -211,7 +219,7 @@ def submit(room_id):
     realtime_service.emit_submission_queued(match.id, submission.student_id, battle_id=room.battle_id)
 
     task = rooms_service.get_task_for_match(match)
-    callback_url = request.host_url.rstrip("/") + "/api/v1/integrations/geekpaste/callback"
+    callback_url = _callback_base_url() + "/api/v1/integrations/geekpaste/callback"
     try:
         external = rooms_service.submit_to_checker(
             submission=submission,

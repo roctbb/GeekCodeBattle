@@ -4,6 +4,7 @@ const EmptyView = { template: '<div />' }
 
 const routes = [
   { path: '/', name: 'home', component: EmptyView },
+  { path: '/play', name: 'play', component: EmptyView },
   { path: '/battles', name: 'battles', component: EmptyView },
   { path: '/battles/:battleId', name: 'battle-details', component: EmptyView },
   { path: '/battles/:battleId/rooms/:roomId', name: 'battle-room-log', component: EmptyView },

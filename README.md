@@ -80,4 +80,5 @@ python3 -m pytest -q
 - `CELERY_ENABLED` — включение celery-задач
 - `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` — broker/backend celery
 - `GEEKPASTE_CALLBACK_*` — параметры верификации callback
+- `SUBMISSION_CHECK_TIMEOUT_SECONDS` — через сколько секунд ожидания callback посылка автоматически помечается как невыполненная (по умолчанию `180`)
 - `AUTO_CREATE_DB` — автосоздание таблиц на startup (рекомендуется `false`, использовать `true` только для временных локальных экспериментов без Alembic)

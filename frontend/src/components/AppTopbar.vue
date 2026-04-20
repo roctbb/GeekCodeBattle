@@ -26,6 +26,15 @@
           >
             Пакеты
           </button>
+          <button
+            type="button"
+            class="btn btn-sm"
+            :class="teacherPage === 'play' ? 'btn-primary' : 'btn-outline-primary'"
+            :aria-current="teacherPage === 'play' ? 'page' : null"
+            @click="$emit('go-play')"
+          >
+            Участие
+          </button>
         </div>
 
         <span class="text-muted small d-none d-md-inline">{{ me.name }}</span>
@@ -42,5 +51,5 @@ defineProps({
   teacherPage: { type: String, default: 'battles' }
 })
 
-defineEmits(['go-battles', 'go-packages', 'logout'])
+defineEmits(['go-battles', 'go-packages', 'go-play', 'logout'])
 </script>

@@ -32,7 +32,7 @@ class Config:
     JWT_SECRET = os.getenv("JWT_SECRET", "change-me")
     GEEKCLASS_HOST = os.getenv("GEEKCLASS_HOST", "https://codingprojects.ru")
     FRONTEND_URL = os.getenv("FRONTEND_URL", "http://localhost:5173")
-    BACKEND_URL = os.getenv("BACKEND_URL", "http://localhost:8090")
+    BACKEND_URL = os.getenv("BACKEND_URL", "")
     ENABLE_GEEKCLASS_LOGIN = env_bool("ENABLE_GEEKCLASS_LOGIN", True)
     ENABLE_DEV_LOGIN = env_bool("ENABLE_DEV_LOGIN", False)
 
@@ -45,6 +45,7 @@ class Config:
     GEEKPASTE_CALLBACK_EXPECTED_SERVICE = os.getenv("GEEKPASTE_CALLBACK_EXPECTED_SERVICE", "geekpaste")
     GEEKPASTE_CALLBACK_MAX_AGE_SECONDS = int(os.getenv("GEEKPASTE_CALLBACK_MAX_AGE_SECONDS", "120"))
     GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS = int(os.getenv("GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS", "86400"))
+    SUBMISSION_CHECK_TIMEOUT_SECONDS = int(os.getenv("SUBMISSION_CHECK_TIMEOUT_SECONDS", "180"))
 
     ROUND_DURATION_MINUTES = int(os.getenv("ROUND_DURATION_MINUTES", "20"))
     POST_WIN_GRACE_MINUTES = int(os.getenv("POST_WIN_GRACE_MINUTES", "5"))
