@@ -71,22 +71,29 @@ def test_queue_state_endpoint(app):
     data = r.get_json()
     assert data['battle_id'] == battle_id
     assert len(data['entries']) == 1
+    assert 'matchmaking' in data
+    assert data['matchmaking']['reason'] in {'battle_not_running', 'not_enough_ready', 'waiting_delay', 'ready_to_match'}
+    assert data['matchmaking']['min_players_to_start'] >= 2
+    assert data['matchmaking']['ready_eligible'] >= 0
 
 
-def test_teacher_cannot_use_student_queue_actions(app):
+def test_teacher_can_use_queue_actions_in_play_mode(app):
     teacher = app.test_client()
     login_dev(teacher, 'teacher-no-queue', 'TeacherNoQueue', 'teacher')
     battle_id = create_task_and_battle(teacher)
 
     join_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/join')
     ready_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/ready')
-    leave_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/leave')
+    time.sleep(1.1)
+    ready_r2 = teacher.post(f'/api/v1/battles/{battle_id}/queue/ready')
     my_room_r = teacher.get(f'/api/v1/battles/{battle_id}/my-room')
+    leave_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/leave')
 
-    assert join_r.status_code == 403
-    assert ready_r.status_code == 403
-    assert leave_r.status_code == 403
-    assert my_room_r.status_code == 403
+    assert join_r.status_code == 200
+    assert ready_r.status_code == 200
+    assert ready_r2.status_code == 200
+    assert my_room_r.status_code == 200
+    assert leave_r.status_code == 200
 
 
 def test_leaderboard_uses_battle_points_not_global_season_points(app):
@@ -152,6 +159,45 @@ def test_matchmaking_runs_after_delay_on_tick_without_second_ready(app):
 
     after_tick_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
     assert after_tick_room['room_id'] is not None
+
+
+def test_submit_uses_request_host_when_backend_url_is_localhost(app, monkeypatch):
+    captured = {"callback_url": None}
+
+    def _fake_submit_for_check(*, callback_url, callback_id, code, lang, task_text, check_type, check_config):
+        captured["callback_url"] = callback_url
+        return {"job_id": "job-callback-host-fallback"}
+
+    monkeypatch.setattr("app.services.rooms_service.submit_for_check", _fake_submit_for_check)
+
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-callback-host', 'TeacherCallbackHost', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'callback-host-s1', 'CallbackHostS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'callback-host-s2', 'CallbackHostS2', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    teacher.get(f'/api/v1/battles/{battle_id}')
+    room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert room_id is not None
+
+    with app.app_context():
+        app.config["BACKEND_URL"] = "http://localhost:8086"
+
+    submit_r = s1.post(
+        f'/api/v1/rooms/{room_id}/submit',
+        json={'language': 'python', 'source_code': 'print(3)'},
+    )
+    assert submit_r.status_code == 202
+    assert captured["callback_url"] == "http://localhost/api/v1/integrations/geekpaste/callback"
 
 
 def test_rejudge_requires_all_participants(app):
@@ -347,6 +393,67 @@ def test_grace_period_and_surrender_flow(app):
     by_user = {p['student_id']: p for p in parts_after}
     assert by_user[s1_user['id']]['result_type'] in {'win', 'draw'}
     assert by_user[s2_user['id']]['result_type'] == 'loss'
+
+
+def test_winner_can_be_matched_before_previous_match_finishes(app):
+    teacher = app.test_client()
+    login_dev(teacher, 'teacher-winner-rematch', 'TeacherWinnerRematch', 'teacher')
+    battle_id = create_task_and_battle(teacher)
+
+    s1 = app.test_client()
+    login_dev(s1, 'winner-rematch-s1', 'WinnerRematchS1', 'student')
+    s2 = app.test_client()
+    login_dev(s2, 'winner-rematch-s2', 'WinnerRematchS2', 'student')
+    s3 = app.test_client()
+    login_dev(s3, 'winner-rematch-s3', 'WinnerRematchS3', 'student')
+
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
+
+    first_room_id = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert first_room_id is not None
+    first_room = s1.get(f'/api/v1/rooms/{first_room_id}').get_json()
+    first_match_id = first_room['match_id']
+
+    submit_r = s1.post(f'/api/v1/rooms/{first_room_id}/submit', json={
+        'language': 'python',
+        'source_code': 'print(3)',
+    })
+    assert submit_r.status_code == 202
+    submission_id = submit_r.get_json()['submission_id']
+
+    callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
+        'callback_id': submission_id,
+        'status': 'success',
+        'points': 1,
+        'max_points': 1,
+    })
+    assert callback_r.status_code == 200
+
+    # Winner already leaves room while the old match is still active for opponent.
+    winner_room_after_win = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
+    assert winner_room_after_win['room_id'] is None
+    first_match_after_win = s1.get(f'/api/v1/matches/{first_match_id}').get_json()
+    assert first_match_after_win['finished_at'] is None
+
+    # New opponent appears in ready queue.
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    time.sleep(1.1)
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
+
+    second_room_s1 = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    second_room_s3 = s3.get(f'/api/v1/battles/{battle_id}/my-room').get_json()['room_id']
+    assert second_room_s1 is not None
+    assert second_room_s3 is not None
+    assert second_room_s1 == second_room_s3
+    assert second_room_s1 != first_room_id
 
 
 def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(app):

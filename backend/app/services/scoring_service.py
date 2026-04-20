@@ -215,6 +215,55 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
         db.session.commit()
         return locked_match
 
+    # Idempotency guard for legacy/inconsistent states:
+    # if match-level scoring artifacts already exist, do not apply deltas again.
+    existing_score_artifacts = (
+        db.session.query(RatingHistory.id)
+        .filter(RatingHistory.match_id == locked_match.id)
+        .limit(1)
+        .first()
+        is not None
+    ) or (
+        db.session.query(ScoreEvent.id)
+        .filter(ScoreEvent.match_id == locked_match.id)
+        .limit(1)
+        .first()
+        is not None
+    )
+    if existing_score_artifacts:
+        now = datetime.now(timezone.utc)
+        if locked_match.finished_at is None:
+            locked_match.finished_by = finished_by
+            locked_match.finished_at = now
+
+        room = db.session.get(Room, locked_match.room_id)
+        if room and room.status != "finished":
+            room.status = "finished"
+            room.finished_at = now
+
+        db.session.flush()
+
+        battle_id = room.battle_id if room else None
+        if battle_id is not None:
+            from ..models import Battle
+
+            battle = db.session.get(Battle, battle_id)
+            if battle and battle.status == "running":
+                for p in participants:
+                    existing = QueueEntry.query.filter_by(battle_id=battle.id, user_id=p.student_id).first()
+                    if not existing:
+                        db.session.add(QueueEntry(battle_id=battle.id, user_id=p.student_id, is_ready=False))
+                    else:
+                        existing.is_ready = False
+
+        current_app.logger.warning(
+            "finalize_match_idempotent_skip match_id=%s finished_by=%s",
+            locked_match.id,
+            finished_by,
+        )
+        db.session.commit()
+        return locked_match
+
     _resolve_results(participants, finished_by)
 
     user_ids = list({p.student_id for p in participants})

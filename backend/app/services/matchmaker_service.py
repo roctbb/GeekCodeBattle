@@ -3,6 +3,7 @@ from __future__ import annotations
 import random
 from datetime import datetime, timezone
 from flask import current_app
+from sqlalchemy import or_
 
 from ..extensions import db
 from ..models import (
@@ -51,8 +52,11 @@ def _find_active_participant_ids(battle_id, user_ids: list) -> set:
         .join(Room, Room.id == Match.room_id)
         .filter(
             Room.battle_id == battle_id,
+            Room.status == "active",
             Match.finished_at.is_(None),
             MatchParticipant.student_id.in_(user_ids),
+            MatchParticipant.accepted_at.is_(None),
+            or_(MatchParticipant.result_type.is_(None), MatchParticipant.result_type != "loss"),
         )
         .distinct()
         .all()

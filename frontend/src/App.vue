@@ -129,7 +129,7 @@
             :grace="roomData.grace"
             :round="roomData.round"
             @update:submit-language="submitForm.language = $event"
-            @update:submit-code="submitForm.source_code = $event"
+            @update:submit-code="updateSubmitCode"
             @submit="submitCode"
             @surrender="surrenderRound"
           />
@@ -138,6 +138,7 @@
             v-else-if="studentJoinedBattleId && selectedBattle"
             :battle="selectedBattle"
             :queue-entries="queue.entries"
+            :queue-meta="queue.meta"
             :me-id="me.id"
             :my-score="myLeaderboardEntry"
             :leaderboard-participants="leaderboard.participants"
@@ -227,7 +228,7 @@ const battles = ref([])
 const selectedBattleId = ref(null)
 const studentJoinedBattleId = ref(null)
 const selectedBattle = computed(() => battles.value.find((b) => b.id === selectedBattleId.value) || null)
-const queue = reactive({ entries: [] })
+const queue = reactive({ entries: [], meta: null })
 const leaderboard = reactive({ participants: [] })
 const battleLogs = ref([])
 const selectedBattleRoomLog = ref(null)
@@ -257,6 +258,9 @@ const loginForm = reactive({ name: 'Teacher', external_id: 'teacher-1', role: 't
 const newBattleTitle = ref('Весенний батл')
 const newBattlePackageIds = ref([])
 const submitForm = reactive({ language: 'python', source_code: 'print("hello")' })
+const SUBMIT_DRAFT_STORAGE_PREFIX = 'gcb:submit-draft:v1'
+const DEFAULT_ROOM_SOURCE_CODE = ''
+const draftRoomId = ref(null)
 const packageForm = reactive({ name: '', description: '' })
 const packageTaskForm = reactive({
   title: '',
@@ -706,6 +710,50 @@ function isEventForCurrentMatch(payload) {
   return currentMatchId === payloadMatchId
 }
 
+function draftStorageKey(roomId) {
+  if (!roomId) return null
+  const userId = me.value?.id ? String(me.value.id) : 'anonymous'
+  return `${SUBMIT_DRAFT_STORAGE_PREFIX}:${userId}:${String(roomId)}`
+}
+
+function readRoomDraft(roomId) {
+  if (typeof window === 'undefined') return null
+  const key = draftStorageKey(roomId)
+  if (!key) return null
+  try {
+    const value = window.localStorage.getItem(key)
+    return value === null ? null : String(value)
+  } catch {
+    return null
+  }
+}
+
+function writeRoomDraft(roomId, sourceCode) {
+  if (typeof window === 'undefined') return
+  const key = draftStorageKey(roomId)
+  if (!key) return
+  try {
+    window.localStorage.setItem(key, String(sourceCode ?? ''))
+  } catch {}
+}
+
+function applyDraftForRoom(roomId) {
+  if (!roomId) {
+    draftRoomId.value = null
+    return
+  }
+  const stored = readRoomDraft(roomId)
+  submitForm.source_code = stored !== null ? stored : DEFAULT_ROOM_SOURCE_CODE
+  draftRoomId.value = String(roomId)
+}
+
+function updateSubmitCode(nextCode) {
+  submitForm.source_code = nextCode
+  if (myRoom.room_id) {
+    writeRoomDraft(myRoom.room_id, submitForm.source_code)
+  }
+}
+
 async function devLogin() {
   if (!authOptions.devLoginEnabled) {
     notify('Тестовый вход отключен', 'warning')
@@ -750,6 +798,7 @@ async function logout() {
   selectedBattleId.value = null
   studentJoinedBattleId.value = null
   queue.entries = []
+  queue.meta = null
   leaderboard.participants = []
   battleLogs.value = []
   taskPackages.value = []
@@ -768,6 +817,8 @@ async function logout() {
   roomData.grace = null
   roomData.round = null
   roomData.mySubmission = null
+  submitForm.source_code = DEFAULT_ROOM_SOURCE_CODE
+  draftRoomId.value = null
   isSubmissionChecking.value = false
   opponentActivity.value = null
   streak.value = 0
@@ -864,6 +915,7 @@ async function deleteBattle() {
   battlePackages.value = []
   battleLogs.value = []
   queue.entries = []
+  queue.meta = null
   leaderboard.participants = []
   await syncData()
   await goToBattlesPage()
@@ -921,6 +973,7 @@ async function loadQueue(battleId = selectedBattleId.value) {
   if (!battleId) return null
   const { data } = await api.get(`/battles/${battleId}/queue`)
   queue.entries = data.entries || []
+  queue.meta = data.matchmaking || null
   return data
 }
 
@@ -1078,6 +1131,7 @@ async function detectStudentJoinedBattle() {
   studentJoinedBattleId.value = null
   selectedBattleId.value = null
   queue.entries = []
+  queue.meta = null
   return false
 }
 
@@ -1396,6 +1450,22 @@ watch(
         else closeTaskEditor()
       }
     }
+  }
+)
+
+watch(
+  () => myRoom.room_id,
+  (nextRoomId, prevRoomId) => {
+    const nextId = nextRoomId ? String(nextRoomId) : null
+    const prevId = prevRoomId ? String(prevRoomId) : null
+    if (!nextId) {
+      draftRoomId.value = null
+      return
+    }
+    if (nextId === prevId && draftRoomId.value === nextId) {
+      return
+    }
+    applyDraftForRoom(nextId)
   }
 )
 

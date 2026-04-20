@@ -54,6 +54,15 @@
         </div>
       </div>
 
+      <section class="matchmaking-status mb-4" :class="`mm-${matchmakingStatus.tone}`" aria-live="polite">
+        <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
+          <h3 class="h6 mb-0">Матчмейкинг</h3>
+          <span class="badge" :class="matchmakingStatus.badgeClass">{{ matchmakingStatus.badgeText }}</span>
+        </div>
+        <p class="mb-1">{{ matchmakingStatus.title }}</p>
+        <small class="text-muted d-block">{{ matchmakingStatus.details }}</small>
+      </section>
+
       <section class="bonus-rules mb-4" aria-label="Правила бонусов">
         <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
           <h3 class="h6 mb-0">Правила бонусов</h3>
@@ -110,6 +119,7 @@ import { computed } from 'vue'
 const props = defineProps({
   battle: { type: Object, default: null },
   queueEntries: { type: Array, default: () => [] },
+  queueMeta: { type: Object, default: null },
   meId: { type: String, default: null },
   myScore: { type: Object, default: null },
   leaderboardParticipants: { type: Array, default: () => [] }
@@ -156,6 +166,84 @@ const myQueueStatus = computed(() => {
   return row?.status || 'not_ready'
 })
 
+const matchmakingStatus = computed(() => {
+  const meta = props.queueMeta || {}
+  const reason = String(meta.reason || '')
+  const readyEligible = Number(meta.ready_eligible || 0)
+  const minPlayers = Math.max(2, Number(meta.min_players_to_start || 2))
+  const activeTotal = Math.max(0, Number(meta.active_total || 0))
+  const waitLeft = Math.max(0, Number(meta.wait_left_seconds || 0))
+  const needMore = Math.max(0, minPlayers - readyEligible)
+
+  if (myQueueStatus.value === 'fighting') {
+    return {
+      tone: 'active',
+      badgeClass: 'text-bg-primary',
+      badgeText: 'В матче',
+      title: 'Раунд уже идет, ждите завершения.',
+      details: `Активных раундов сейчас: ${activeTotal}.`,
+    }
+  }
+
+  if (myQueueStatus.value !== 'ready') {
+    return {
+      tone: 'idle',
+      badgeClass: 'text-bg-secondary',
+      badgeText: 'Не в поиске',
+      title: 'Поиск матча не запущен.',
+      details: 'Нажмите «Готов к раунду», чтобы начать подбор соперников.',
+    }
+  }
+
+  if (reason === 'battle_not_running') {
+    return {
+      tone: 'paused',
+      badgeClass: 'text-bg-dark',
+      badgeText: 'Ожидание старта',
+      title: 'Баттл еще не в статусе running.',
+      details: 'Матчи начнутся после команды «Запустить» от учителя.',
+    }
+  }
+
+  if (reason === 'not_enough_ready') {
+    return {
+      tone: 'search',
+      badgeClass: 'text-bg-info',
+      badgeText: 'Поиск игроков',
+      title: `Готовых сейчас ${readyEligible}/${minPlayers}.`,
+      details: `Нужно еще участников: ${needMore}.`,
+    }
+  }
+
+  if (reason === 'waiting_delay') {
+    return {
+      tone: 'balance',
+      badgeClass: 'text-bg-warning',
+      badgeText: 'Балансировка',
+      title: 'Подбор уже идет, формируем комнату.',
+      details: `Ожидаем запуск: ${formatMmSeconds(waitLeft)}.`,
+    }
+  }
+
+  if (reason === 'ready_to_match') {
+    return {
+      tone: 'launch',
+      badgeClass: 'text-bg-success',
+      badgeText: 'Почти старт',
+      title: 'Комната готовится к запуску.',
+      details: `Готовых для старта: ${readyEligible}/${minPlayers}.`,
+    }
+  }
+
+  return {
+    tone: 'search',
+    badgeClass: 'text-bg-info',
+    badgeText: 'Поиск',
+    title: 'Идет подбор соперников.',
+    details: `Готовых: ${readyEligible}/${minPlayers}.`,
+  }
+})
+
 function statusLabel(status) {
   if (status === 'fighting') return 'Сражается'
   if (status === 'ready') return 'Готов'
@@ -174,6 +262,13 @@ function streakBonus(streakRaw) {
   if (streak === 3) return 20
   if (streak === 2) return 10
   return 0
+}
+
+function formatMmSeconds(totalSeconds) {
+  const sec = Math.max(0, Number(totalSeconds || 0))
+  const mm = Math.floor(sec / 60)
+  const ss = sec % 60
+  return `${String(mm).padStart(2, '0')}:${String(ss).padStart(2, '0')}`
 }
 
 function shortId(id) {
@@ -266,6 +361,43 @@ function shortId(id) {
 .my-ready-hint {
   margin-top: 0.35rem;
   font-weight: 600;
+}
+
+.matchmaking-status {
+  border: 1px solid #dbe5f9;
+  border-radius: 12px;
+  background: #f8fbff;
+  padding: 0.78rem 0.9rem;
+}
+
+.matchmaking-status.mm-idle {
+  background: #f5f7fb;
+  border-color: #d9deea;
+}
+
+.matchmaking-status.mm-search {
+  background: #eef8ff;
+  border-color: #c9e6ff;
+}
+
+.matchmaking-status.mm-balance {
+  background: #fff8eb;
+  border-color: #ffe1b0;
+}
+
+.matchmaking-status.mm-launch {
+  background: #edf9f0;
+  border-color: #c7ebd0;
+}
+
+.matchmaking-status.mm-active {
+  background: #edf3ff;
+  border-color: #ccdcff;
+}
+
+.matchmaking-status.mm-paused {
+  background: #f3f4f6;
+  border-color: #d4d6db;
 }
 
 .bonus-rules {

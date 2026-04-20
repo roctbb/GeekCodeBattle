@@ -1,12 +1,13 @@
 import json
 from datetime import datetime, timezone, timedelta
+from urllib.parse import urlparse
 
 from flask import Blueprint, request, session, current_app
 
 from ..api.responses import ok, fail
 from ..api.serializers import participant_out
 from ..api.validators import VALID_LANGUAGES
-from ..auth import login_required, role_required
+from ..auth import login_required
 from ..services import rooms_service, realtime_service
 from ..services.scoring_service import get_winner_info, try_finalize_after_submission
 from ..services.matchmaker_service import run_matchmaking
@@ -27,7 +28,17 @@ def _emit_finalize_side_effects(match, battle_id):
 def _callback_base_url():
     explicit_backend_url = str(current_app.config.get("BACKEND_URL") or "").strip()
     if explicit_backend_url:
-        return explicit_backend_url.rstrip("/")
+        parsed = urlparse(explicit_backend_url)
+        host = (parsed.hostname or "").strip().lower()
+        # External checker cannot call back to loopback addresses.
+        if host not in {"localhost", "127.0.0.1", "0.0.0.0", "::1"}:
+            return explicit_backend_url.rstrip("/")
+        current_app.logger.warning(
+            "callback_base_url_ignored_localhost backend_url=%s host_url=%s",
+            explicit_backend_url,
+            request.host_url,
+        )
+        return request.host_url.rstrip("/")
     return request.host_url.rstrip("/")
 
 
@@ -182,7 +193,7 @@ def get_room(room_id):
 
 
 @rooms_bp.get("/battles/<battle_id>/my-room")
-@role_required("student")
+@login_required
 def my_room(battle_id):
     room = rooms_service.find_active_room_for_user(battle_id, session["user_id"])
     if not room:
@@ -192,7 +203,7 @@ def my_room(battle_id):
 
 
 @rooms_bp.post("/rooms/<room_id>/submit")
-@role_required("student")
+@login_required
 def submit(room_id):
     room = rooms_service.get_room_or_none(room_id)
     if not room:
@@ -257,7 +268,7 @@ def submit(room_id):
 
 
 @rooms_bp.post("/rooms/<room_id>/surrender")
-@role_required("student")
+@login_required
 def surrender(room_id):
     room = rooms_service.get_room_or_none(room_id)
     if not room:

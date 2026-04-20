@@ -1,14 +1,24 @@
-from flask import Blueprint, session
+from datetime import datetime, timezone
+
+from flask import Blueprint, session, current_app
 from sqlalchemy import or_
 
 from ..api.responses import ok, fail
-from ..auth import login_required, role_required
+from ..auth import login_required
 from ..services import queue_service, matchmaker_service, realtime_service, presence_runtime
 from ..models import QueueEntry, User, MatchParticipant, Match, Room
 from ..extensions import db
 
 
 queue_bp = Blueprint("queue", __name__, url_prefix="/api/v1")
+
+
+def _as_utc(dt):
+    if dt is None:
+        return None
+    if dt.tzinfo is None:
+        return dt.replace(tzinfo=timezone.utc)
+    return dt
 
 
 @queue_bp.get("/battles/<battle_id>/queue")
@@ -87,17 +97,58 @@ def queue_state(battle_id):
     status_rank = {"fighting": 0, "ready": 1, "not_ready": 2}
     all_entries.sort(key=lambda x: (status_rank.get(x.get("status"), 9), x.get("name", "").lower()))
 
+    room_size = max(2, int(battle.room_size or 2))
+    min_players_to_start = 2 if room_size == 2 else room_size
+    delay_seconds = max(0, int(current_app.config.get("MATCHMAKING_DELAY_SECONDS", 10) or 0))
+
+    ready_queue_entries = [entry for entry, _ in queue_rows if bool(entry.is_ready)]
+    eligible_ready_entries = [entry for entry in ready_queue_entries if entry.user_id not in active_by_user]
+    ready_eligible_count = len(eligible_ready_entries)
+
+    oldest_ready_at = None
+    oldest_wait_seconds = 0
+    wait_left_seconds = delay_seconds
+    if eligible_ready_entries:
+        oldest_ready_at = min(_as_utc(entry.enqueued_at) for entry in eligible_ready_entries)
+        oldest_wait_seconds = max(0, int((datetime.now(timezone.utc) - oldest_ready_at).total_seconds()))
+        wait_left_seconds = max(0, delay_seconds - oldest_wait_seconds)
+
+    enough_players = ready_eligible_count >= min_players_to_start
+    can_start_now = enough_players and wait_left_seconds <= 0
+
+    if battle.status != "running":
+        reason = "battle_not_running"
+    elif not enough_players:
+        reason = "not_enough_ready"
+    elif not can_start_now:
+        reason = "waiting_delay"
+    else:
+        reason = "ready_to_match"
+
     return ok(
         {
             "battle_id": str(battle.id),
             "status": battle.status,
             "entries": all_entries,
+            "matchmaking": {
+                "reason": reason,
+                "room_size": room_size,
+                "min_players_to_start": min_players_to_start,
+                "delay_seconds": delay_seconds,
+                "ready_total": len(ready_queue_entries),
+                "ready_eligible": ready_eligible_count,
+                "active_total": len(active_by_user),
+                "oldest_ready_enqueued_at": oldest_ready_at.isoformat() if oldest_ready_at else None,
+                "oldest_ready_wait_seconds": oldest_wait_seconds,
+                "wait_left_seconds": wait_left_seconds,
+                "can_start_now": can_start_now,
+            },
         }
     )
 
 
 @queue_bp.post("/battles/<battle_id>/queue/join")
-@role_required("student")
+@login_required
 def queue_join(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
@@ -109,7 +160,7 @@ def queue_join(battle_id):
 
 
 @queue_bp.post("/battles/<battle_id>/queue/leave")
-@role_required("student")
+@login_required
 def queue_leave(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
@@ -121,7 +172,7 @@ def queue_leave(battle_id):
 
 
 @queue_bp.post("/battles/<battle_id>/queue/ready")
-@role_required("student")
+@login_required
 def queue_ready(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
