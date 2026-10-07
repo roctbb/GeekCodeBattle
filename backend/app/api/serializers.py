@@ -11,16 +11,21 @@ def user_out(user):
     }
 
 
-def battle_out(battle):
-    return {
+def battle_out(battle, include_invite=False):
+    data = {
         "id": str(battle.id),
         "title": battle.title,
         "status": battle.status,
         "room_size": battle.room_size,
         "started_at": battle.started_at.isoformat() if battle.started_at else None,
         "finished_at": battle.finished_at.isoformat() if battle.finished_at else None,
+        "stopped_at": battle.stopped_at.isoformat() if battle.stopped_at else None,
         "created_by": str(battle.created_by),
     }
+
+    if include_invite:
+        data["invite_code"] = battle.invite_code
+    return data
 
 
 def task_out(task):

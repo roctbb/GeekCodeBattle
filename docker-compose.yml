@@ -1,3 +1,34 @@
+x-app-env: &app-env
+  FLASK_APP: manage:app
+  SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
+  JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
+  CONNECTION_STRING: postgresql+psycopg2://${POSTGRES_USER:-geekcodebattle}:${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}@db:5432/${POSTGRES_DB:-geekcodebattle}
+  REDIS_URL: redis://redis:6379/0
+  SOCKETIO_MESSAGE_QUEUE: redis://redis:6379/1
+  CELERY_ENABLED: "true"
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  FRONTEND_URL: ${FRONTEND_URL:-https://battle.geekclass.ru}
+  BACKEND_URL: ${BACKEND_URL:-https://battle.geekclass.ru}
+  GEEKCLASS_HOST: ${GEEKCLASS_HOST:-https://codingprojects.ru}
+  GEEKPASTE_API_URL: ${GEEKPASTE_API_URL:?GEEKPASTE_API_URL is required}
+  GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
+  GEEKPASTE_CALLBACK_EXPECTED_SERVICE: ${GEEKPASTE_CALLBACK_EXPECTED_SERVICE:-geekpaste}
+  GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: ${GEEKPASTE_CALLBACK_MAX_AGE_SECONDS:-120}
+  GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: ${GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS:-86400}
+  SUBMISSION_CHECK_TIMEOUT_SECONDS: ${SUBMISSION_CHECK_TIMEOUT_SECONDS:-180}
+  ROUND_DURATION_MINUTES: ${ROUND_DURATION_MINUTES:-20}
+  POST_WIN_GRACE_MINUTES: ${POST_WIN_GRACE_MINUTES:-5}
+  DISCONNECT_GRACE_SECONDS: ${DISCONNECT_GRACE_SECONDS:-300}
+  MATCHMAKING_DELAY_SECONDS: ${MATCHMAKING_DELAY_SECONDS:-10}
+  ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
+  AUTO_CREATE_DB: "false"
+  ENABLE_DEV_LOGIN: "false"
+  DEBUG: "false"
+  SESSION_COOKIE_SECURE: ${SESSION_COOKIE_SECURE:-true}
+  PROXY_FIX_ENABLED: "true"
+  RUN_MIGRATIONS: "false"
+
 services:
   db:
     image: postgres:15
@@ -5,15 +36,14 @@ services:
     environment:
       POSTGRES_DB: ${POSTGRES_DB:-geekcodebattle}
       POSTGRES_USER: ${POSTGRES_USER:-geekcodebattle}
-      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:-geekcodebattle}
+      POSTGRES_PASSWORD: ${POSTGRES_PASSWORD:?POSTGRES_PASSWORD is required}
     volumes:
       - geekcodebattle_pg:/var/lib/postgresql/data
     healthcheck:
       test: ["CMD-SHELL", "pg_isready -U ${POSTGRES_USER:-geekcodebattle} -d ${POSTGRES_DB:-geekcodebattle}"]
-      interval: 10s
+      interval: 5s
       timeout: 5s
-      retries: 10
-
+      retries: 20
   redis:
     image: redis:7
     restart: unless-stopped
@@ -22,131 +52,52 @@ services:
       - geekcodebattle_redis:/data
     healthcheck:
       test: ["CMD", "redis-cli", "ping"]
-      interval: 10s
-      timeout: 5s
-      retries: 10
-
-  backend:
-    build:
-      context: ./backend
-    restart: unless-stopped
+      interval: 5s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    environment: *app-env
+    command: ["flask", "db", "upgrade"]
     depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
+  backend:
+    build: ./backend
+    restart: unless-stopped
     environment:
-      FLASK_APP: manage:app
+      <<: *app-env
       PORT: 8086
-      FRONTEND_URL: ${FRONTEND_URL:-http://localhost:8090}
-      BACKEND_URL: ${BACKEND_URL:-http://localhost:8086}
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      CONNECTION_STRING: postgresql+psycopg2://${POSTGRES_USER:-geekcodebattle}:${POSTGRES_PASSWORD:-geekcodebattle}@db:5432/${POSTGRES_DB:-geekcodebattle}
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      GEEKCLASS_HOST: ${GEEKCLASS_HOST:-https://codingprojects.ru}
-      GEEKPASTE_API_URL: ${GEEKPASTE_API_URL:?GEEKPASTE_API_URL is required}
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: ${GEEKPASTE_CALLBACK_REQUIRE_AUTH:-true}
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: ${GEEKPASTE_CALLBACK_EXPECTED_SERVICE:-geekpaste}
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: ${GEEKPASTE_CALLBACK_MAX_AGE_SECONDS:-120}
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: ${GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS:-86400}
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: ${SUBMISSION_CHECK_TIMEOUT_SECONDS:-180}
-      CELERY_ENABLED: ${CELERY_ENABLED:-true}
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      ROUND_DURATION_MINUTES: ${ROUND_DURATION_MINUTES:-20}
-      DISCONNECT_GRACE_SECONDS: ${DISCONNECT_GRACE_SECONDS:-300}
-      MATCHMAKING_DELAY_SECONDS: ${MATCHMAKING_DELAY_SECONDS:-10}
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: ${ROUND_TIMEOUT_BACKGROUND_ENABLED:-false}
-      ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
-      AUTO_CREATE_DB: "false"
-      RUN_MIGRATIONS: "true"
-      GUNICORN_WORKERS: ${GUNICORN_WORKERS:-1}
+      GUNICORN_WORKERS: "1"
+      GUNICORN_THREADS: ${GUNICORN_THREADS:-100}
       GUNICORN_TIMEOUT: ${GUNICORN_TIMEOUT:-120}
+    depends_on:
+      migrate: {condition: service_completed_successfully}
     healthcheck:
-      test: ["CMD-SHELL", "curl -fsS http://localhost:8086/api/v1/health || exit 1"]
+      test: ["CMD", "curl", "-fsS", "http://localhost:8086/api/v1/health"]
       interval: 15s
       timeout: 5s
-      retries: 20
-    ports:
-      - "127.0.0.1:8086:8086"
+      retries: 10
+      start_period: 15s
   celery_worker:
-    build:
-      context: ./backend
+    build: ./backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     command: ["python", "celery_worker.py"]
-    environment:
-      FLASK_APP: manage:app
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      CONNECTION_STRING: postgresql+psycopg2://${POSTGRES_USER:-geekcodebattle}:${POSTGRES_PASSWORD:-geekcodebattle}@db:5432/${POSTGRES_DB:-geekcodebattle}
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      GEEKCLASS_HOST: ${GEEKCLASS_HOST:-https://codingprojects.ru}
-      BACKEND_URL: ${BACKEND_URL:-}
-      GEEKPASTE_API_URL: ${GEEKPASTE_API_URL:?GEEKPASTE_API_URL is required}
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: ${GEEKPASTE_CALLBACK_REQUIRE_AUTH:-true}
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: ${GEEKPASTE_CALLBACK_EXPECTED_SERVICE:-geekpaste}
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: ${GEEKPASTE_CALLBACK_MAX_AGE_SECONDS:-120}
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: ${GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS:-86400}
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: ${SUBMISSION_CHECK_TIMEOUT_SECONDS:-180}
-      CELERY_ENABLED: "true"
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      ROUND_DURATION_MINUTES: ${ROUND_DURATION_MINUTES:-20}
-      DISCONNECT_GRACE_SECONDS: ${DISCONNECT_GRACE_SECONDS:-300}
-      MATCHMAKING_DELAY_SECONDS: ${MATCHMAKING_DELAY_SECONDS:-10}
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
-      ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
-      AUTO_CREATE_DB: "false"
-      RUN_MIGRATIONS: "false"
-
+    environment: *app-env
+    depends_on:
+      migrate: {condition: service_completed_successfully}
   celery_beat:
-    build:
-      context: ./backend
+    build: ./backend
     restart: unless-stopped
-    depends_on:
-      db:
-        condition: service_healthy
-      redis:
-        condition: service_healthy
     command: ["python", "celery_beat.py"]
-    environment:
-      FLASK_APP: manage:app
-      SECRET_KEY: ${SECRET_KEY:?SECRET_KEY is required}
-      CONNECTION_STRING: postgresql+psycopg2://${POSTGRES_USER:-geekcodebattle}:${POSTGRES_PASSWORD:-geekcodebattle}@db:5432/${POSTGRES_DB:-geekcodebattle}
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: ${JWT_SECRET:?JWT_SECRET is required}
-      GEEKCLASS_HOST: ${GEEKCLASS_HOST:-https://codingprojects.ru}
-      BACKEND_URL: ${BACKEND_URL:-}
-      GEEKPASTE_API_URL: ${GEEKPASTE_API_URL:?GEEKPASTE_API_URL is required}
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: ${GEEKPASTE_CALLBACK_REQUIRE_AUTH:-true}
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: ${GEEKPASTE_CALLBACK_EXPECTED_SERVICE:-geekpaste}
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: ${GEEKPASTE_CALLBACK_MAX_AGE_SECONDS:-120}
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: ${GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS:-86400}
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: ${SUBMISSION_CHECK_TIMEOUT_SECONDS:-180}
-      CELERY_ENABLED: "true"
-      CELERY_BROKER_URL: ${CELERY_BROKER_URL:-redis://redis:6379/0}
-      CELERY_RESULT_BACKEND: ${CELERY_RESULT_BACKEND:-redis://redis:6379/0}
-      ROUND_DURATION_MINUTES: ${ROUND_DURATION_MINUTES:-20}
-      DISCONNECT_GRACE_SECONDS: ${DISCONNECT_GRACE_SECONDS:-300}
-      MATCHMAKING_DELAY_SECONDS: ${MATCHMAKING_DELAY_SECONDS:-10}
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
-      ROUND_TIMEOUT_POLL_SECONDS: ${ROUND_TIMEOUT_POLL_SECONDS:-2}
-      AUTO_CREATE_DB: "false"
-      RUN_MIGRATIONS: "false"
-
+    environment: *app-env
+    depends_on:
+      migrate: {condition: service_completed_successfully}
   frontend:
-    build:
-      context: ./frontend
+    build: ./frontend
     restart: unless-stopped
     depends_on:
-      backend:
-        condition: service_healthy
+      backend: {condition: service_healthy}
     ports:
       - "127.0.0.1:${FRONTEND_PORT:-8090}:80"
 

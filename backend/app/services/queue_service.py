@@ -4,7 +4,10 @@ from ..utils import as_uuid
 
 
 def get_battle_or_none(battle_id):
-    return db.session.get(Battle, as_uuid(battle_id))
+    try:
+        return db.session.get(Battle, as_uuid(battle_id))
+    except (ValueError, TypeError, AttributeError):
+        return None
 
 
 def join_queue(*, battle_id, user_id):

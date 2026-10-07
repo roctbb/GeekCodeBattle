@@ -3,7 +3,8 @@ from flask import Blueprint, request, session
 from ..api.responses import ok, fail
 from ..api.serializers import participant_out
 from ..api.validators import VALID_PARTICIPANT_RESULTS
-from ..auth import login_required, role_required
+from ..auth import login_required, role_required, current_user
+from ..access import can_read_match
 from ..services import matches_service
 
 
@@ -16,6 +17,8 @@ def get_match(match_id):
     match = matches_service.get_match_or_none(match_id)
     if not match:
         return fail("Not found", 404)
+    if not can_read_match(current_user(), match):
+        return fail("Forbidden", 403)
     return ok(
         {
             "id": str(match.id),
@@ -33,6 +36,8 @@ def match_participants(match_id):
     match = matches_service.get_match_or_none(match_id)
     if not match:
         return fail("Not found", 404)
+    if not can_read_match(current_user(), match):
+        return fail("Forbidden", 403)
     return ok([participant_out(i) for i in matches_service.get_match_participants(match_id)])
 
 
@@ -48,7 +53,7 @@ def rejudge(match_id):
     if not isinstance(new_results, list) or not new_results:
         return fail("new_results is required", 400)
     for item in new_results:
-        if item.get("result_type") not in VALID_PARTICIPANT_RESULTS:
+        if not isinstance(item, dict) or item.get("result_type") not in VALID_PARTICIPANT_RESULTS:
             return fail("Invalid result_type", 400)
 
     _, error = matches_service.rejudge_match(
@@ -61,4 +66,6 @@ def rejudge(match_id):
         return fail("Not found", 404)
     if error == "missing_participants":
         return fail("new_results must include every room participant", 400)
+    if error == "match_not_finished":
+        return fail("Finish the round before rejudging", 409)
     return ok()

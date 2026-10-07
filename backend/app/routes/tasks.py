@@ -11,7 +11,7 @@ tasks_bp = Blueprint("tasks", __name__, url_prefix="/api/v1")
 
 
 @tasks_bp.get("/tasks")
-@login_required
+@role_required("teacher", "admin")
 def list_tasks():
     return ok([task_out(t) for t in tasks_service.list_tasks()])
 
@@ -41,7 +41,7 @@ def create_task():
 
 
 @tasks_bp.get("/tasks/<task_id>")
-@login_required
+@role_required("teacher", "admin")
 def get_task(task_id):
     task = tasks_service.get_task_or_none(task_id)
     if not task:
@@ -126,7 +126,7 @@ def export_tasks():
 
 
 @tasks_bp.get("/task-packages")
-@login_required
+@role_required("teacher", "admin")
 def list_task_packages():
     packages = tasks_service.list_task_packages()
     package_tasks = []
@@ -193,7 +193,7 @@ def import_task_package():
 
 
 @tasks_bp.get("/task-packages/<package_id>")
-@login_required
+@role_required("teacher", "admin")
 def get_task_package(package_id):
     package = tasks_service.get_task_package_or_none(package_id)
     if not package:

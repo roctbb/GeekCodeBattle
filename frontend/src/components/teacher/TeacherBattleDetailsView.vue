@@ -4,11 +4,11 @@
       <header class="battle-hero mb-4">
         <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
           <div>
-            <p class="hero-eyebrow mb-1">Управление батлом</p>
+            <p class="hero-eyebrow mb-1">{{ status === 'finished' ? 'Результаты батла' : 'Управление батлом' }}</p>
             <h2 class="h4 mb-1">{{ selectedBattle.title }}</h2>
             <p class="text-muted mb-0 d-flex flex-wrap align-items-center gap-2">
-              <span class="status-chip" :class="`status-${selectedBattle.status}`">{{ selectedBattle.status }}</span>
-              <span>ID: {{ shortId(selectedBattle.id) }}</span>
+              <span class="status-chip" :class="`status-${selectedBattle.status}`">{{ battleStatus(selectedBattle.status) }}</span>
+              <span v-if="selectedBattle.invite_code && status !== 'finished'">Инвайт: <strong class="code-like">{{ selectedBattle.invite_code }}</strong></span>
             </p>
           </div>
           <button class="btn btn-outline-secondary action-btn" @click="$emit('back')">
@@ -17,30 +17,14 @@
           </button>
         </div>
 
-        <section class="hero-stats">
-          <article class="hero-stat">
-            <span class="hero-stat-label">Задач в пуле</span>
-            <span class="hero-stat-value">{{ battleTasks.length }}</span>
-          </article>
-          <article class="hero-stat">
-            <span class="hero-stat-label">Пакетов подключено</span>
-            <span class="hero-stat-value">{{ connectedPackagesCount }}</span>
-          </article>
-          <article class="hero-stat">
-            <span class="hero-stat-label">Участников в лобби</span>
-            <span class="hero-stat-value">{{ queueEntries.length }}</span>
-          </article>
-          <article class="hero-stat">
-            <span class="hero-stat-label">Комнат</span>
-            <span class="hero-stat-value">{{ battleLogs.length }}</span>
-          </article>
-        </section>
+
       </header>
 
-      <div class="d-flex flex-wrap gap-2 mb-4 action-ribbon">
+      <div v-if="status !== 'finished'" class="d-flex flex-wrap gap-2 mb-4 action-ribbon">
         <button
           v-if="showOpenLobby"
           class="btn btn-outline-primary action-btn"
+          :disabled="!selectedBattle.invite_code"
           title="Открыть лобби"
           @click="$emit('open-lobby')"
         >
@@ -50,6 +34,7 @@
         <button
           v-if="showStart"
           class="btn btn-primary action-btn"
+          :disabled="!selectedBattle.invite_code || !battleTasks.length"
           title="Запустить"
           @click="$emit('start')"
         >
@@ -74,18 +59,10 @@
           <i class="bi bi-stop-fill" aria-hidden="true"></i>
           <span>Завершить</span>
         </button>
-        <button
-          v-if="canDelete"
-          class="btn btn-danger action-btn"
-          title="Удалить батл"
-          @click="$emit('delete-battle')"
-        >
-          <i class="bi bi-trash-fill" aria-hidden="true"></i>
-          <span>Удалить</span>
-        </button>
       </div>
 
-      <section class="mb-4">
+      <details v-if="status !== 'finished'" class="mb-4" :open="status === 'draft' || !selectedBattle.invite_code"><summary class="mb-3">Инвайт и пакеты задач</summary>
+        <BattleInviteSettings :battle-id="selectedBattle.id" :code="selectedBattle.invite_code" @saved="$emit('invite-saved', $event)" />
         <div class="d-flex justify-content-between align-items-center mb-3">
           <h3 class="h6 mb-0">Пакеты задач</h3>
           <small class="text-muted">Отмеченные пакеты участвуют в жеребьёвке раундов</small>
@@ -124,8 +101,11 @@
         <div class="empty-state" v-else>
           Нет доступных пакетов. Добавьте пакет в разделе «Пакеты», затем вернитесь сюда.
         </div>
-      </section>
+      </details>
 
+      <div class="battle-section-tabs" role="group" aria-label="Раздел батла"><button :aria-pressed="tab === 'statistics'" @click="tab='statistics'">Статистика учеников</button><button :aria-pressed="tab === 'rooms'" @click="tab='rooms'">Лобби и комнаты</button></div>
+      <TeacherBattleStatistics v-if="tab === 'statistics'" :battle-id="selectedBattle.id" :refresh-key="refreshKey" @open-student="$emit('open-student', $event)" />
+      <div v-else>
       <section class="row g-3">
         <div class="col-12 col-lg-6">
           <div class="soft-panel h-100">
@@ -151,7 +131,7 @@
 
         <div class="col-12 col-lg-6">
           <div class="soft-panel h-100">
-            <h4 class="h6 mb-3">Kahoot-лидерборд</h4>
+            <h4 class="h6 mb-3">Таблица результатов</h4>
             <ul class="list-group list-group-flush" v-if="scoreboardRows.length">
               <li class="list-group-item px-0" v-for="p in scoreboardRows" :key="p.user_id">
                 <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
@@ -241,14 +221,25 @@
           {{ roomLogFilter === 'current' ? 'Текущих комнат пока нет.' : 'Завершённых комнат пока нет.' }}
         </div>
       </section>
+      </div>
+      <details v-if="canDelete" class="mt-4 small text-muted">
+        <summary>Управление архивом</summary>
+        <p class="mt-3">Удалить можно только батл без начисленных очков. История начислений сохраняется для пересчёта рейтинга.</p>
+        <button class="btn btn-sm btn-outline-danger" @click="$emit('delete-battle')">Удалить батл</button>
+      </details>
     </div>
   </section>
 </template>
 
 <script setup>
+import { battleStatus } from '../../labels'
 import { computed, ref } from 'vue'
+import BattleInviteSettings from './BattleInviteSettings.vue'
+import TeacherBattleStatistics from './TeacherBattleStatistics.vue'
+const tab = ref('statistics')
 
 const props = defineProps({
+  refreshKey: Number,
   selectedBattle: { type: Object, default: null },
   battleTasks: { type: Array, default: () => [] },
   taskPackages: { type: Array, default: () => [] },
@@ -260,6 +251,8 @@ const props = defineProps({
 })
 
 defineEmits([
+  'invite-saved',
+  'open-student',
   'back',
   'open-lobby',
   'start',
@@ -275,8 +268,7 @@ const status = computed(() => props.selectedBattle?.status || 'draft')
 const showOpenLobby = computed(() => status.value === 'draft' || status.value === 'stopped')
 const showStart = computed(() => status.value === 'draft' || status.value === 'lobby_open' || status.value === 'stopped')
 const showStop = computed(() => status.value === 'running')
-const showFinish = computed(() => status.value === 'running' || status.value === 'stopped')
-const connectedPackagesCount = computed(() => props.battlePackageIds.length)
+const showFinish = computed(() => status.value !== 'finished')
 const roomLogFilter = ref('current')
 const filteredBattleLogs = computed(() => {
   if (roomLogFilter.value === 'completed') {
@@ -353,10 +345,7 @@ function formatDate(value) {
   padding: 1rem;
   border-radius: 14px;
   border: 1px solid #d8e3fb;
-  background:
-    radial-gradient(circle at 8% -15%, rgba(43, 95, 255, 0.14), rgba(43, 95, 255, 0) 48%),
-    radial-gradient(circle at 95% -8%, rgba(14, 165, 164, 0.16), rgba(14, 165, 164, 0) 40%),
-    linear-gradient(145deg, #f9fbff 0%, #f3f8ff 100%);
+  background: var(--app-card);
 }
 
 .hero-eyebrow {
@@ -409,7 +398,7 @@ function formatDate(value) {
 .package-card {
   border: 1px solid #dce5f8;
   border-radius: 12px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
+  background: var(--app-card);
   padding: 0.74rem;
   display: flex;
   justify-content: space-between;
@@ -448,7 +437,7 @@ function formatDate(value) {
 .room-card {
   border: 1px solid #dde6f8;
   border-radius: 12px;
-  background: linear-gradient(180deg, #fcfeff 0%, #f8fbff 100%);
+  background: var(--app-card);
   padding: 0.78rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
   transition: transform 140ms ease, box-shadow 140ms ease;
@@ -473,7 +462,7 @@ function formatDate(value) {
 }
 
 .soft-panel :deep(.progress-bar) {
-  background: linear-gradient(90deg, #2b5fff 0%, #0ea5a4 100%);
+  background: var(--app-brand);
 }
 
 .rooms-grid :deep(.badge),

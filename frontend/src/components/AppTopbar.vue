@@ -6,7 +6,7 @@
         <span>GeekCodeBattle</span>
       </a>
 
-      <div class="d-flex align-items-center gap-2 ms-auto" v-if="me">
+      <div class="d-flex flex-wrap justify-content-end align-items-center gap-2 ms-auto" v-if="me">
         <div class="btn-group" role="group" v-if="isTeacher">
           <button
             type="button"
@@ -29,14 +29,16 @@
           <button
             type="button"
             class="btn btn-sm"
-            :class="teacherPage === 'play' ? 'btn-primary' : 'btn-outline-primary'"
-            :aria-current="teacherPage === 'play' ? 'page' : null"
+            :class="teacherPage === 'play' && !resultsActive ? 'btn-primary' : 'btn-outline-primary'"
+            :aria-current="teacherPage === 'play' && !resultsActive ? 'page' : null"
             @click="$emit('go-play')"
           >
             Участие
           </button>
         </div>
 
+        <div v-if="!isTeacher" class="btn-group" role="group" aria-label="Навигация ученика"><button class="btn btn-sm" :class="resultsActive ? 'btn-outline-primary' : 'btn-primary'" @click="$emit('go-battles')">Батл</button><button class="btn btn-sm" :class="resultsActive ? 'btn-primary' : 'btn-outline-primary'" @click="$emit('go-results')">Результаты</button></div>
+        <button v-else class="btn btn-sm" :class="resultsActive ? 'btn-primary' : 'btn-outline-secondary'" :aria-current="resultsActive ? 'page' : null" @click="$emit('go-results')">Мои результаты</button>
         <span class="text-muted small d-none d-md-inline">{{ me.name }}</span>
         <button type="button" class="btn btn-sm btn-outline-secondary" @click="$emit('logout')">Выйти</button>
       </div>
@@ -48,8 +50,9 @@
 defineProps({
   me: { type: Object, default: null },
   isTeacher: { type: Boolean, default: false },
+  resultsActive: Boolean,
   teacherPage: { type: String, default: 'battles' }
 })
 
-defineEmits(['go-battles', 'go-packages', 'go-play', 'logout'])
+defineEmits(['go-battles', 'go-packages', 'go-play', 'go-results', 'logout'])
 </script>

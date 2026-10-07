@@ -4,6 +4,14 @@ import App from './App.vue'
 import router from './router'
 import 'bootstrap/dist/css/bootstrap.min.css'
 import 'bootstrap-icons/font/bootstrap-icons.css'
-import 'bootstrap/dist/js/bootstrap.bundle.min.js'
-
-createApp(App).use(createPinia()).use(router).mount('#app')
+const app = createApp(App)
+app.config.errorHandler = (error) => {
+  console.error(error)
+  const messages = {
+    'Scored battles must be retained for rating history': 'Сражение с начисленными очками нельзя удалить: оно нужно для истории рейтинга.',
+    'Finish the round before rejudging': 'Сначала завершите раунд.',
+  }
+  const serverMessage = error?.response?.data?.error?.message
+  window.dispatchEvent(new CustomEvent('gcb-ui-error', { detail: messages[serverMessage] || 'Не удалось выполнить действие. Проверьте данные и попробуйте ещё раз.' }))
+}
+app.use(createPinia()).use(router).mount('#app')

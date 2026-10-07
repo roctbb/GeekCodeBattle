@@ -11,6 +11,7 @@ class Match(UUIDPKMixin, db.Model):
 
     room_id = db.Column(UUID(as_uuid=True), db.ForeignKey("rooms.id"), nullable=False)
     task_id = db.Column(UUID(as_uuid=True), db.ForeignKey("tasks.id"), nullable=False)
+    task_snapshot = db.Column(db.JSON, nullable=True)
     finished_by = db.Column(db.Text, nullable=True)
     created_at = db.Column(db.DateTime(timezone=True), nullable=False, default=utcnow)
     finished_at = db.Column(db.DateTime(timezone=True), nullable=True)

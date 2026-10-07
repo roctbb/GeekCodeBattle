@@ -66,7 +66,7 @@
           <span>
             <strong class="d-block">{{ t.title }}</strong>
             <small class="text-muted d-flex align-items-center gap-2">
-              <span class="status-chip" :class="`difficulty-${t.difficulty}`">{{ t.difficulty }}</span>
+              <span class="status-chip" :class="`difficulty-${t.difficulty}`">{{ difficultyLabel(t.difficulty) }}</span>
               <span>{{ t.check_type }}</span>
             </small>
           </span>
@@ -81,6 +81,7 @@
 </template>
 
 <script setup>
+import { difficultyLabel } from '../../labels'
 defineProps({
   selectedTaskPackage: { type: Object, default: null },
   taskActionPanel: { type: String, default: null },

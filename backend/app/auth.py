@@ -47,7 +47,7 @@ def current_user():
 def login_required(fn):
     @wraps(fn)
     def wrapper(*args, **kwargs):
-        if not session.get("user_id"):
+        if current_user() is None:
             return jsonify({"error": "Unauthorized"}), 401
         return fn(*args, **kwargs)
 
@@ -58,9 +58,10 @@ def role_required(*roles):
     def decorator(fn):
         @wraps(fn)
         def wrapper(*args, **kwargs):
-            if not session.get("user_id"):
+            user = current_user()
+            if user is None:
                 return jsonify({"error": "Unauthorized"}), 401
-            if session.get("role") not in roles:
+            if user.role not in roles:
                 return jsonify({"error": "Forbidden"}), 403
             return fn(*args, **kwargs)
 

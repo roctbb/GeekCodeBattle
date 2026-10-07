@@ -2,6 +2,7 @@ from flask import Flask, jsonify
 from flask_cors import CORS
 from flask import session, request
 from flask_socketio import join_room, leave_room
+from werkzeug.middleware.proxy_fix import ProxyFix
 
 from .config import Config
 from .celery_app import init_celery
@@ -65,15 +66,23 @@ def _mark_user_offline(user_id):
     return state
 
 
-def create_app() -> Flask:
+def create_app(config=None) -> Flask:
     app = Flask(__name__)
     app.config.from_object(Config)
+    if config:
+        app.config.update(config)
+    if app.config["PROXY_FIX_ENABLED"]:
+        # The container proxy forwards one trusted protocol value and appends an IP.
+        app.wsgi_app = ProxyFix(app.wsgi_app, x_for=2, x_proto=1)
 
-    CORS(app, supports_credentials=True)
+    origins = [app.config["FRONTEND_URL"].rstrip("/")]
+    CORS(app, supports_credentials=True, origins=origins)
 
     db.init_app(app)
     migrate.init_app(app, db)
-    socketio.init_app(app)
+    socketio.init_app(app, cors_allowed_origins=origins,
+                     message_queue=app.config["SOCKETIO_MESSAGE_QUEUE"] or None,
+                     channel="geekcodebattle", async_mode=app.config["SOCKETIO_ASYNC_MODE"])
     init_celery(app)
     from . import models  # noqa: F401
 
@@ -84,6 +93,7 @@ def create_app() -> Flask:
     from .routes.rooms import rooms_bp
     from .routes.matches import matches_bp
     from .routes.integrations import integrations_bp
+    from .routes.results import results_bp
 
     app.register_blueprint(auth_bp)
     app.register_blueprint(battles_bp)
@@ -92,6 +102,7 @@ def create_app() -> Flask:
     app.register_blueprint(rooms_bp)
     app.register_blueprint(matches_bp)
     app.register_blueprint(integrations_bp)
+    app.register_blueprint(results_bp)
 
     def _delayed_tick_battles(battle_ids):
         delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
@@ -116,18 +127,25 @@ def create_app() -> Flask:
 
     @socketio.on("subscribe")
     def handle_subscribe(data):
+        from .auth import current_user
+        from .access import allowed_scopes
+        user = current_user()
+        if user is None:
+            return {"error": "Unauthorized"}
         if not isinstance(data, dict):
-            return
+            return {"error": "Invalid subscription"}
+        scopes = allowed_scopes(user, data)
+        if scopes is None:
+            return {"error": "Forbidden"}
         sid = request.sid
-        battle_id = data.get("battle_id")
-        room_id = data.get("room_id")
-        match_id = data.get("match_id")
+        previous_battle = _socket_scope_by_sid.get(sid, {}).get("battle")
+        if previous_battle:
+            leave_room(f"staff:battle:{previous_battle}")
         _update_socket_scopes_for_sid(
-            sid,
-            battle_id=battle_id,
-            room_id=room_id,
-            match_id=match_id,
+            sid, **scopes,
         )
+        if user.role in {"teacher", "admin"} and scopes["battle_id"]:
+            join_room(f"staff:battle:{scopes['battle_id']}")
         user_id = session.get("user_id")
         if user_id:
             join_room(f"user:{user_id}")
@@ -137,13 +155,19 @@ def create_app() -> Flask:
                 if _socket_count_by_user[str(user_id)] == 1:
                     presence_runtime.set_online(str(user_id))
                     _mark_user_online(user_id)
+        return {"status": "subscribed"}
 
     @socketio.on("connect")
     def handle_connect():
-        user_id = session.get("user_id")
+        from .auth import current_user
+        user = current_user()
+        user_id = str(user.id) if user else None
         sid = request.sid
         if not user_id or not sid:
-            return
+            return False
+        join_room(f"user:{user_id}")
+        if user.role in {"teacher", "admin"}:
+            join_room("staff")
         if sid in _socket_user_by_sid:
             return
         user_key = str(user_id)
@@ -174,6 +198,16 @@ def create_app() -> Flask:
 
     @app.get("/api/v1/health")
     def health():
+        from sqlalchemy import text
+        try:
+            db.session.execute(text("SELECT 1"))
+            if app.config["SOCKETIO_MESSAGE_QUEUE"]:
+                import redis
+                redis.from_url(app.config["SOCKETIO_MESSAGE_QUEUE"], socket_connect_timeout=2,
+                               socket_timeout=2).ping()
+        except Exception:
+            db.session.rollback()
+            return jsonify({"status": "unavailable"}), 503
         return jsonify({"status": "ok"})
 
     if app.config.get("AUTO_CREATE_DB", False):

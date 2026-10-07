@@ -29,6 +29,7 @@ def create_task_and_battle(teacher_client, room_size=2):
     battle_id = rb.get_json()['id']
 
     assert teacher_client.post(f'/api/v1/battles/{battle_id}/tasks/{task_id}').status_code == 200
+    assert teacher_client.put(f'/api/v1/battles/{battle_id}/invite', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert teacher_client.post(f'/api/v1/battles/{battle_id}/open-lobby').status_code == 200
     assert teacher_client.post(f'/api/v1/battles/{battle_id}/start').status_code == 200
 
@@ -44,16 +45,19 @@ def test_odd_players_form_room_of_three(app):
     for i in range(1, 4):
         c = app.test_client()
         login_dev(c, f'student-{i}', f'S{i}', 'student')
-        assert c.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+        assert c.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
         assert c.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
         students.append(c)
 
+    time.sleep(1.1)
+    students[0].post(f'/api/v1/battles/{battle_id}/queue/ready')
     room_ids = []
     for c in students:
         r = c.get(f'/api/v1/battles/{battle_id}/my-room')
         assert r.status_code == 200
         room_ids.append(r.get_json()['room_id'])
 
+    assert all(room_ids)
     assert len(set(room_ids)) == 1
 
 
@@ -64,7 +68,7 @@ def test_queue_state_endpoint(app):
 
     s1 = app.test_client()
     login_dev(s1, 's1', 'S1', 'student')
-    s1.post(f'/api/v1/battles/{battle_id}/queue/join')
+    s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]})
 
     r = teacher.get(f'/api/v1/battles/{battle_id}/queue')
     assert r.status_code == 200
@@ -82,7 +86,7 @@ def test_teacher_can_use_queue_actions_in_play_mode(app):
     login_dev(teacher, 'teacher-no-queue', 'TeacherNoQueue', 'teacher')
     battle_id = create_task_and_battle(teacher)
 
-    join_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/join')
+    join_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]})
     ready_r = teacher.post(f'/api/v1/battles/{battle_id}/queue/ready')
     time.sleep(1.1)
     ready_r2 = teacher.post(f'/api/v1/battles/{battle_id}/queue/ready')
@@ -110,9 +114,9 @@ def test_leaderboard_uses_battle_points_not_global_season_points(app):
     s2 = app.test_client()
     login_dev(s2, 'board-scope-s2', 'BoardScopeS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -145,9 +149,9 @@ def test_matchmaking_runs_after_delay_on_tick_without_second_ready(app):
     s2 = app.test_client()
     login_dev(s2, 'mm-tick-s2', 'MMTickS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     before_tick_room = s1.get(f'/api/v1/battles/{battle_id}/my-room').get_json()
@@ -179,9 +183,9 @@ def test_submit_uses_request_host_when_backend_url_is_localhost(app, monkeypatch
     s2 = app.test_client()
     login_dev(s2, 'callback-host-s2', 'CallbackHostS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -210,9 +214,9 @@ def test_rejudge_requires_all_participants(app):
     s2 = app.test_client()
     login_dev(s2, 'rs2', 'RS2', 'student')
 
-    s1.post(f'/api/v1/battles/{battle_id}/queue/join')
+    s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]})
     s1.post(f'/api/v1/battles/{battle_id}/queue/ready')
-    s2.post(f'/api/v1/battles/{battle_id}/queue/join')
+    s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]})
     s2.post(f'/api/v1/battles/{battle_id}/queue/ready')
 
     # Matchmaking for 2 players respects startup delay; trigger once more after delay.
@@ -246,9 +250,9 @@ def test_room_public_tests_include_actual_output_from_checker_details(app):
     s2 = app.test_client()
     login_dev(s2, 'actual-output-s2', 'ActualOutputS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -297,9 +301,9 @@ def test_room_my_submission_contains_checker_error_message(app):
     s2 = app.test_client()
     login_dev(s2, 'checker-error-s2', 'CheckerErrorS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -433,9 +437,9 @@ def test_grace_period_and_surrender_flow(app):
     s2 = app.test_client()
     s2_user = login_dev(s2, 'grace-s2', 'GraceS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -508,9 +512,9 @@ def test_winner_can_be_matched_before_previous_match_finishes(app):
     s3 = app.test_client()
     login_dev(s3, 'winner-rematch-s3', 'WinnerRematchS3', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -543,7 +547,7 @@ def test_winner_can_be_matched_before_previous_match_finishes(app):
     assert first_match_after_win['finished_at'] is None
 
     # New opponent appears in ready queue.
-    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s3.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -567,9 +571,9 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
     s2 = app.test_client()
     login_dev(s2, 'timeout-s2', 'TimeoutS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -600,7 +604,7 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
 
     submission_r = teacher.get(f'/api/v1/battles/{battle_id}/submissions/{submission_id}')
     assert submission_r.status_code == 200
-    assert submission_r.get_json()['verdict'] == 'wrong_answer'
+    assert submission_r.get_json()['verdict'] == 'internal_error'
 
     callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
         'callback_id': submission_id,
@@ -614,7 +618,7 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
 
     submission_after_callback = teacher.get(f'/api/v1/battles/{battle_id}/submissions/{submission_id}')
     assert submission_after_callback.status_code == 200
-    assert submission_after_callback.get_json()['verdict'] == 'wrong_answer'
+    assert submission_after_callback.get_json()['verdict'] == 'internal_error'
 
 
 def test_cannot_resubmit_while_previous_submission_is_queued(app):
@@ -627,9 +631,9 @@ def test_cannot_resubmit_while_previous_submission_is_queued(app):
     s2 = app.test_client()
     login_dev(s2, 'queued-guard-s2', 'QueuedGuardS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -680,9 +684,9 @@ def test_teacher_can_recheck_submission_from_room_log(app, monkeypatch):
     s2 = app.test_client()
     login_dev(s2, 'recheck-s2', 'RecheckS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -754,7 +758,7 @@ def test_matchmaking_pairs_by_rating_and_uses_harder_tasks_for_stronger_group(ap
         db.session.commit()
 
     for c in (s_hi_1, s_hi_2, s_lo_1, s_lo_2):
-        assert c.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+        assert c.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
         assert c.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -793,9 +797,9 @@ def test_matchmaking_does_not_place_fighting_player_into_second_active_room(app)
     s3 = app.test_client()
     login_dev(s3, 'no-dup-s3', 'NoDupS3', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -805,9 +809,9 @@ def test_matchmaking_does_not_place_fighting_player_into_second_active_room(app)
     assert first_room is not None
 
     # Try to requeue a player who is already in active room and pair with a free player.
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 409
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 400
+    assert s3.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s3.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -842,7 +846,7 @@ def test_matchmaking_respects_room_size_three(app):
     for i in range(1, 7):
         c = app.test_client()
         login_dev(c, f'room3-s{i}', f'Room3S{i}', 'student')
-        assert c.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+        assert c.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
         assert c.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
         students.append(c)
 
@@ -877,9 +881,9 @@ def test_round_auto_finishes_when_all_players_disconnected_for_grace(app):
     s2 = app.test_client()
     login_dev(s2, 'disc-s2', 'DiscS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -925,9 +929,9 @@ def test_round_timeout_marks_everyone_as_loss(app):
     s2 = app.test_client()
     s2_user = login_dev(s2, 'timeout-s2', 'TimeoutS2', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)
@@ -973,9 +977,9 @@ def test_submit_requires_match_participation(app):
     s3 = app.test_client()
     login_dev(s3, 'submit-participant-s3', 'SubmitParticipantS3', 'student')
 
-    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s1.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s1.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
-    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join').status_code == 200
+    assert s2.post(f'/api/v1/battles/{battle_id}/queue/join', json={'code': 'B' + battle_id[:8]}).status_code == 200
     assert s2.post(f'/api/v1/battles/{battle_id}/queue/ready').status_code == 200
 
     time.sleep(1.1)

@@ -195,7 +195,8 @@ def _create_room_and_match(battle: Battle, group: list[QueueEntry]):
         room.status = "cancelled"
         return None
 
-    match = Match(room_id=room.id, task_id=task.id)
+    from .reports_service import public_task
+    match = Match(room_id=room.id, task_id=task.id, task_snapshot=public_task(task))
     db.session.add(match)
     db.session.flush()
 
@@ -209,8 +210,10 @@ def _create_room_and_match(battle: Battle, group: list[QueueEntry]):
 
 
 def run_matchmaking(battle_id) -> list[dict]:
+    from .scoring_service import lock_scoring
+    lock_scoring()
     battle = db.session.get(Battle, battle_id)
-    if not battle or battle.status != "running":
+    if not battle or battle.status != "running" or not battle.invite_code:
         return []
 
     created = []

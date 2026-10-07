@@ -1,3 +1,23 @@
+name: geekcodebattle-dev
+x-dev-env: &dev-env
+  FLASK_APP: manage:app
+  SECRET_KEY: dev-only-secret
+  JWT_SECRET: ${JWT_SECRET:-dev-only-secret}
+  CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
+  REDIS_URL: redis://redis:6379/0
+  SOCKETIO_MESSAGE_QUEUE: redis://redis:6379/1
+  CELERY_ENABLED: "true"
+  CELERY_BROKER_URL: redis://redis:6379/0
+  CELERY_RESULT_BACKEND: redis://redis:6379/0
+  FRONTEND_URL: http://localhost:5173
+  BACKEND_URL: ${DEV_BACKEND_URL:-http://localhost:8090}
+  GEEKPASTE_API_URL: ${GEEKPASTE_API_URL:-http://host.docker.internal:8084/api/external/check}
+  ENABLE_DEV_LOGIN: "true"
+  ENABLE_GEEKCLASS_LOGIN: "false"
+  SESSION_COOKIE_SECURE: "false"
+  PROXY_FIX_ENABLED: "false"
+  AUTO_CREATE_DB: "false"
+  RUN_MIGRATIONS: "false"
 services:
   db:
     image: postgres:15
@@ -5,123 +25,60 @@ services:
       POSTGRES_DB: geekcodebattle
       POSTGRES_USER: geekcodebattle
       POSTGRES_PASSWORD: geekcodebattle
-    ports:
-      - "5434:5432"
-    volumes:
-      - geekcodebattle_pg:/var/lib/postgresql/data
-
+    ports: ["127.0.0.1:5434:5432"]
+    volumes: ["geekcodebattle_dev_pg:/var/lib/postgresql/data"]
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U geekcodebattle -d geekcodebattle"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
   redis:
     image: redis:7
-    ports:
-      - "6380:6379"
-
+    ports: ["127.0.0.1:6380:6379"]
+    healthcheck:
+      test: ["CMD", "redis-cli", "ping"]
+      interval: 3s
+      timeout: 3s
+      retries: 20
+  migrate:
+    build: ./backend
+    environment: *dev-env
+    command: ["flask", "db", "upgrade"]
+    depends_on:
+      db: {condition: service_healthy}
+      redis: {condition: service_healthy}
   backend:
-    build:
-      context: ./backend
-    depends_on:
-      - db
-      - redis
+    build: ./backend
     environment:
-      SECRET_KEY: change-me
-      CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: change-me
-      GEEKCLASS_HOST: https://codingprojects.ru
-      BACKEND_URL: http://localhost:8086
-      GEEKPASTE_API_URL: http://paste:8084/api/external/check
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
-      CELERY_ENABLED: "true"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
-      ROUND_DURATION_MINUTES: "20"
-      DISCONNECT_GRACE_SECONDS: "300"
-      MATCHMAKING_DELAY_SECONDS: "10"
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
-      ROUND_TIMEOUT_POLL_SECONDS: "2"
-      AUTO_CREATE_DB: "false"
-      FLASK_APP: manage:app
-      RUN_MIGRATIONS: "true"
-    ports:
-      - "8090:8090"
-
+      <<: *dev-env
+      PORT: 8086
+    ports: ["127.0.0.1:8090:8086"]
+    extra_hosts: ["host.docker.internal:host-gateway"]
+    depends_on:
+      migrate: {condition: service_completed_successfully}
   celery_worker:
-    build:
-      context: ./backend
-    depends_on:
-      - db
-      - redis
+    build: ./backend
+    environment: *dev-env
     command: ["python", "celery_worker.py"]
-    environment:
-      SECRET_KEY: change-me
-      CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: change-me
-      GEEKCLASS_HOST: https://codingprojects.ru
-      BACKEND_URL: http://localhost:8086
-      GEEKPASTE_API_URL: http://paste:8084/api/external/check
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
-      CELERY_ENABLED: "true"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
-      ROUND_DURATION_MINUTES: "20"
-      DISCONNECT_GRACE_SECONDS: "300"
-      MATCHMAKING_DELAY_SECONDS: "10"
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
-      ROUND_TIMEOUT_POLL_SECONDS: "2"
-      AUTO_CREATE_DB: "false"
-      FLASK_APP: manage:app
-      RUN_MIGRATIONS: "false"
-
-  celery_beat:
-    build:
-      context: ./backend
     depends_on:
-      - db
-      - redis
+      migrate: {condition: service_completed_successfully}
+  celery_beat:
+    build: ./backend
+    environment: *dev-env
     command: ["python", "celery_beat.py"]
-    environment:
-      SECRET_KEY: change-me
-      CONNECTION_STRING: postgresql+psycopg2://geekcodebattle:geekcodebattle@db:5432/geekcodebattle
-      REDIS_URL: redis://redis:6379/0
-      JWT_SECRET: change-me
-      GEEKCLASS_HOST: https://codingprojects.ru
-      BACKEND_URL: http://localhost:8086
-      GEEKPASTE_API_URL: http://paste:8084/api/external/check
-      GEEKPASTE_CALLBACK_REQUIRE_AUTH: "true"
-      GEEKPASTE_CALLBACK_EXPECTED_SERVICE: geekpaste
-      GEEKPASTE_CALLBACK_MAX_AGE_SECONDS: "120"
-      GEEKPASTE_CALLBACK_DEDUP_TTL_SECONDS: "86400"
-      SUBMISSION_CHECK_TIMEOUT_SECONDS: "180"
-      CELERY_ENABLED: "true"
-      CELERY_BROKER_URL: "redis://redis:6379/0"
-      CELERY_RESULT_BACKEND: "redis://redis:6379/0"
-      ROUND_DURATION_MINUTES: "20"
-      DISCONNECT_GRACE_SECONDS: "300"
-      MATCHMAKING_DELAY_SECONDS: "10"
-      ROUND_TIMEOUT_BACKGROUND_ENABLED: "false"
-      ROUND_TIMEOUT_POLL_SECONDS: "2"
-      AUTO_CREATE_DB: "false"
-      FLASK_APP: manage:app
-      RUN_MIGRATIONS: "false"
-
+    depends_on:
+      migrate: {condition: service_completed_successfully}
   frontend:
-    image: node:22
+    image: node:22-alpine
     working_dir: /app
     volumes:
       - ./frontend:/app
-    command: sh -c "npm install && npm run dev -- --host 0.0.0.0 --port 5173"
-    ports:
-      - "5173:5173"
-    depends_on:
-      - backend
-
+      - geekcodebattle_dev_node_modules:/app/node_modules
+    environment:
+      VITE_PROXY_TARGET: http://backend:8086
+    command: sh -c "npm ci && npm run dev -- --host 0.0.0.0 --port 5173"
+    ports: ["127.0.0.1:5173:5173"]
+    depends_on: [backend]
 volumes:
-  geekcodebattle_pg:
+  geekcodebattle_dev_pg:
+  geekcodebattle_dev_node_modules:

@@ -7,7 +7,7 @@
             <p class="joined-eyebrow mb-1">Лобби баттла</p>
             <h2 class="h4 mb-1">{{ battle.title }}</h2>
             <p class="text-muted mb-0 d-flex flex-wrap align-items-center gap-2">
-              <span class="status-pill">{{ battle.status }}</span>
+              <span class="status-pill">{{ battleStatus(battle.status) }}</span>
               <span>ID: {{ shortId(battle.id) }}</span>
             </p>
           </div>
@@ -15,7 +15,7 @@
 
         <div class="hero-metrics">
           <article class="hero-metric">
-            <span class="hero-metric-label">Ваш скор</span>
+            <span class="hero-metric-label">Ваши очки</span>
             <strong class="hero-metric-value">{{ myEntry?.season_points ?? 0 }}</strong>
           </article>
           <article class="hero-metric">
@@ -44,37 +44,16 @@
         </button>
       </div>
 
-      <div class="my-ready-status mb-4" :class="myQueueStatus === 'ready' ? 'is-ready' : 'is-not-ready'">
-        <div class="d-flex flex-wrap align-items-center gap-2">
-          <span class="text-muted">Ваш статус:</span>
-          <span class="badge" :class="statusClass(myQueueStatus)">{{ statusLabel(myQueueStatus) }}</span>
-        </div>
-        <div class="my-ready-hint" v-if="myQueueStatus !== 'ready'">
-          Нажмите «Готов к раунду», чтобы попасть в следующий матч.
-        </div>
-      </div>
-
       <section class="matchmaking-status mb-4" :class="`mm-${matchmakingStatus.tone}`" aria-live="polite">
         <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-1">
-          <h3 class="h6 mb-0">Матчмейкинг</h3>
+          <h3 class="h6 mb-0">Подбор соперника</h3>
           <span class="badge" :class="matchmakingStatus.badgeClass">{{ matchmakingStatus.badgeText }}</span>
         </div>
         <p class="mb-1">{{ matchmakingStatus.title }}</p>
         <small class="text-muted d-block">{{ matchmakingStatus.details }}</small>
       </section>
 
-      <section class="bonus-rules mb-4" aria-label="Правила бонусов">
-        <div class="d-flex flex-wrap justify-content-between align-items-start gap-2 mb-2">
-          <h3 class="h6 mb-0">Правила бонусов</h3>
-          <span class="bonus-cap">Лимит: +30 за раунд</span>
-        </div>
-        <ul class="bonus-rule-list mb-0">
-          <li>2 победы подряд: <strong>+10</strong></li>
-          <li>3 победы подряд: <strong>+20</strong></li>
-          <li>4+ побед подряд: <strong>+30</strong></li>
-          <li>Победа после 3+ поражений подряд: <strong>+20</strong></li>
-        </ul>
-      </section>
+      <details class="bonus-rules mb-4"><summary>Как начисляются бонусы</summary><ul class="bonus-rule-list mt-3 mb-0"><li>2 победы подряд: +10 очков</li><li>3 победы подряд: +20 очков</li><li>4 и больше: +30 очков</li><li>Победа после 3 поражений: +20 очков</li></ul></details>
 
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
         <h3 class="h6 mb-0">Таблица лобби</h3>
@@ -114,6 +93,7 @@
 </template>
 
 <script setup>
+import { battleStatus } from '../../labels'
 import { computed } from 'vue'
 
 const props = defineProps({
@@ -156,8 +136,7 @@ const scoreboard = computed(() => {
 })
 
 const myEntry = computed(() => {
-  if (!props.myScore?.user_id) return props.myScore || null
-  return scoreboard.value.find((item) => item.user_id === props.myScore.user_id) || props.myScore
+  return scoreboard.value.find((item) => item.user_id === props.meId) || props.myScore
 })
 
 const myQueueStatus = computed(() => {
@@ -200,7 +179,7 @@ const matchmakingStatus = computed(() => {
       tone: 'paused',
       badgeClass: 'text-bg-dark',
       badgeText: 'Ожидание старта',
-      title: 'Баттл еще не в статусе running.',
+      title: 'Учитель ещё не запустил сражение.',
       details: 'Матчи начнутся после команды «Запустить» от учителя.',
     }
   }
@@ -284,10 +263,7 @@ function shortId(id) {
 .joined-hero {
   border: 1px solid #d9e5fd;
   border-radius: 16px;
-  background:
-    radial-gradient(circle at 10% -10%, rgba(43, 95, 255, 0.14), rgba(43, 95, 255, 0) 45%),
-    radial-gradient(circle at 100% 0%, rgba(14, 165, 164, 0.14), rgba(14, 165, 164, 0) 38%),
-    linear-gradient(145deg, #f9fbff 0%, #f4f8ff 100%);
+  background: var(--app-card);
   padding: 0.9rem;
 }
 
@@ -403,9 +379,7 @@ function shortId(id) {
 .bonus-rules {
   border: 1px solid #dbe5f9;
   border-radius: 12px;
-  background:
-    linear-gradient(160deg, rgba(255, 255, 255, 0.94) 0%, rgba(248, 252, 255, 0.94) 100%),
-    radial-gradient(circle at 100% 0%, rgba(14, 165, 164, 0.13), rgba(14, 165, 164, 0) 42%);
+  background: var(--app-card);
   padding: 0.78rem 0.9rem;
 }
 
@@ -443,7 +417,7 @@ function shortId(id) {
 
 .scoreboard-item.is-me {
   border-color: #b9d1ff;
-  background: linear-gradient(180deg, #f8fbff 0%, #f2f7ff 100%);
+  background: var(--app-card);
   box-shadow: inset 0 0 0 1px rgba(43, 95, 255, 0.15);
 }
 

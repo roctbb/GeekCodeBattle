@@ -1,4 +1,4 @@
-from urllib.parse import quote, urlparse
+from urllib.parse import quote, urlparse, parse_qsl, urlencode, urlunparse
 
 from flask import Blueprint, request, session, current_app, redirect
 
@@ -82,16 +82,23 @@ def login_redirect():
     return redirect(jwt_url)
 
 
+def _failed_login_redirect(next_url):
+    parsed = urlparse(next_url)
+    query = dict(parse_qsl(parsed.query))
+    query["auth_error"] = "invalid_token"
+    return _frontend_redirect(urlunparse(parsed._replace(query=urlencode(query))))
+
+
 @auth_bp.get("/auth/callback")
 def login_callback():
     token = request.args.get("token")
     next_url = _sanitize_next_url(request.args.get("next"))
     if not token:
-        return _frontend_redirect(next_url)
+        return _failed_login_redirect(next_url)
     try:
         process_login_token(token)
     except Exception:
-        return _frontend_redirect(next_url)
+        return _failed_login_redirect(next_url)
     return _frontend_redirect(next_url)
 
 
@@ -134,3 +141,11 @@ def dev_login():
     session["user_id"] = str(user.id)
     session["role"] = user.role
     return ok(user_out(user))
+
+
+@auth_bp.get("/me/state")
+@login_required
+def my_state():
+    from ..services.player_state import player_state
+    user = current_user()
+    return ok({"me": user_out(user), **player_state(user)})

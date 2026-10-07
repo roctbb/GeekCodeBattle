@@ -1,84 +1,133 @@
 # GeekCodeBattle
 
-GeekCodeBattle — платформа очных батлов по программированию для школьников.
+Платформа очных батлов по программированию: Vue 3, Flask, Socket.IO, PostgreSQL и Redis. Проверка решений — через GeekPasteV2, вход — через GeekClass.
 
-## Что реализовано
+## Возможности
 
-- Backend: Flask + SQLAlchemy + Socket.IO + Alembic
-- Frontend: Vue 3 + Vite + Socket.IO client
-- PostgreSQL + Redis
-- JWT авторизация (GeekClass) + dev-login
-- Битвы: `open-lobby -> start -> stop -> finish`
-- Матчмейкинг с поддержкой комнат 2..N
-- Спец-правило: при нечетном числе и `room_size=2` создается комната из 3
-- Проверка решений через GeekPasteV2 (`tests|gpt`)
-- Callback с проверкой подписи, `iat`, дедупликацией
-- Финализация раундов, pairwise Elo, очки, streak-бонусы
-- Rejudge для teacher/admin
-- Realtime события: queue/match/round/leaderboard/status
+- Вход в батл по инвайту: преподаватель задаёт или генерирует код перед открытием лобби и запуском. Публичного списка батлов для учеников нет.
+- «Мои результаты»: история участия, условия выданных задач, успешные и неуспешные посылки с исходным кодом и результатами проверки.
+- Статистика текущих и прошедших батлов: матрица учеников и задач, решённые/нерешённые задачи, количество посылок и подробная история каждого ученика.
+- Лобби, подбор соперников, комнаты из 2–N участников, таймер и дорешивание после первой победы.
+- Редактор Python/C++ с локальным сохранением черновика и языка, режимами «Фокус на коде» и «Условие рядом».
+- Markdown-условия, публичные примеры и результаты проверки. Редактор задач с предпросмотром и формами тестов.
+- Очки, серии и парный Elo. Переоценка завершённого раунда пересчитывает последующие начисления и рейтинг; причина и изменения сохраняются в журнале.
+- Восстановление текущего раунда после переподключения, индикатор связи и резервное обновление состояния.
+- Доступ к комнатам и Socket.IO проверяется на сервере. Полные конфигурации задач доступны преподавателям.
+- JS, CSS, иконки, шрифты и редактор поставляются в сборке, CDN нет. Markdown не загружает внешние картинки. Установка npm/pip-пакетов при сборке требует доступа к реестрам; GeekClass/GeekPaste остаются внешними интеграциями.
 
-## Production запуск (server)
+## Production: battle.geekclass.ru
 
-1. Подготовьте переменные:
+Схема: внешний Nginx с TLS → `127.0.0.1:8090` → Nginx frontend → backend `8086`. PostgreSQL, Redis и backend наружу не публикуются.
 
-```bash
-cp .env.example .env
-# заполните SECRET_KEY, JWT_SECRET, GEEKPASTE_API_URL, пароли БД
-```
+1. Скопируйте `.env.example` в `.env`. Задайте собственные `SECRET_KEY`, `JWT_SECRET`, `POSTGRES_PASSWORD` и доступный из контейнера `GEEKPASTE_API_URL`. JWT-секрет должен соответствовать интеграциям. Для существующей БД сохраните её пароль и имя Compose-проекта.
+2. Оба публичных адреса должны быть `https://battle.geekclass.ru`:
 
-2. Запустите:
+   ```dotenv
+   FRONTEND_URL=https://battle.geekclass.ru
+   BACKEND_URL=https://battle.geekclass.ru
+   SESSION_COOKIE_SECURE=true
+   ```
 
-```bash
-docker compose up -d --build
-```
+   `BACKEND_URL` используется для возврата после входа и callback проверки; localhost здесь не подходит. Имя `paste` из примера `GEEKPASTE_API_URL` разрешается только в общей Docker-сети — укажите фактический доступный адрес своего checker.
 
-3. Сервис доступен на `http://<server-ip>` (frontend через Nginx на порту 80).
+3. Перед обновлением сделайте резервную копию PostgreSQL. Запустите:
 
-Особенности production compose:
-- frontend — статическая сборка в Nginx
-- backend — `gunicorn + eventlet`
-- фоновые задачи — `celery_worker + celery_beat`
-- миграции (`flask db upgrade`) выполняются на старте backend контейнера
-- dev-сервера Vite нет
+   ```bash
+   docker compose up -d --build
+   docker compose ps
+   docker compose logs --tail=100 migrate backend celery_worker celery_beat
+   curl --fail http://127.0.0.1:8090/api/v1/health
+   ```
 
-## Development запуск
+   Миграции выполняет отдельный сервис `migrate`. Backend и Celery стартуют только после успешных миграций, frontend — после проверки backend. Имена существующих volumes сохранены; не используйте `down -v` на рабочей базе.
 
-Используйте отдельный файл:
+4. Сверьте серверный Nginx с [примером](deploy/nginx.external.conf.example). В обеих location передаётся `X-Forwarded-Proto`, для `/socket.io/` настроены Upgrade, таймауты 120 секунд и отключение буферизации. Сохраните рабочие пути сертификатов Certbot. После изменения проверьте `nginx -t` и перезагрузите конфигурацию Nginx.
+
+Backend работает через Gunicorn `gthread` + `simple-websocket`: один worker, по умолчанию 100 потоков. Несколько Gunicorn workers без sticky routing не поддерживаются. Celery передаёт Socket.IO-события через общий Redis message queue. Встроенный Nginx сохраняет HTTPS-схему внешнего прокси; `ProxyFix` рассчитан на эту цепочку. Не публикуйте backend напрямую при включённом `PROXY_FIX_ENABLED`.
+
+`/api/v1/health` проверяет БД и Redis; доступность GeekClass/GeekPaste нужно проверять отдельно. Таймаут checker возвращает техническую ошибку и позволяет повторить отправку. Исправление оценки уже завершённого раунда выполняется отдельно через «Изменить результат раунда» в журнале комнаты.
+
+Битвы с начисленными очками нельзя удалить: их история нужна для корректной переоценки. Используйте завершение битвы. Пересчёт опирается на сохранённые матчи и начисления; ранее удалённые исторические записи восстановить автоматически нельзя.
+
+### Инвайты, остановка и результаты
+
+В карточке батла задайте уникальный код из 4–32 латинских букв, цифр, дефисов или подчёркиваний либо нажмите «Сгенерировать». Регистр не важен. Сообщите код ученикам: на главной странице они вводят его и попадают в лобби. После первого успешного входа доступ к своим результатам сохраняется; смена кода закрывает старый код для новых участников, но не исключает уже вошедших.
+
+«Остановить» завершает активные раунды и показывает ученикам результаты. Такой батл можно запустить снова; участники возвращаются через «Продолжить батл» в своих результатах. «Завершить» окончательно закрывает батл и оставляет доступ к его истории. В списке преподавателя есть фильтры текущих и прошедших батлов. В статистике нажатие на ученика или ячейку задачи открывает его решения. Невыданные задачи отмечаются отдельно и не считаются нерешёнными.
+
+Миграция `0005_battle_invites` сохраняет членство существующих участников по очередям и истории матчей. Старым батлам нужно назначить инвайт; без него новые раунды не запускаются. Для новых раундов сохраняется снимок условия задачи, чтобы последующие правки не меняли историю. Для старых раундов снимок создаётся из условия, существующего на момент миграции. Ученику доступны только его посылки; преподавателю — отчёты по всем участникам.
+
+## Development
 
 ```bash
 docker compose -f docker-compose.dev.yml up --build
 ```
 
-- Frontend dev server: `http://localhost:5173`
-- Backend API: `http://localhost:8090`
+- Frontend: `http://localhost:5173` (Vite проксирует API и WebSocket на `backend:8086`).
+- Backend: `http://localhost:8090`; PostgreSQL: `localhost:5434`; Redis: `localhost:6380`.
+- Отдельный Compose-проект и volumes; тестовый вход включён, GeekClass выключен.
+- Для checker задайте `GEEKPASTE_API_URL` и `DEV_BACKEND_URL`, доступный для обратного запроса из его окружения.
+- Порт `8090` занят и production-стеком, и dev backend: запускайте их по отдельности либо меняйте порт.
 
-## Миграции
+## Проверки
 
-Миграции находятся в `backend/migrations`.
-
-Команды:
-
-```bash
-cd backend
-export FLASK_APP=manage:app
-flask db upgrade
-```
-
-## Тесты backend
+Backend (Python 3.11+):
 
 ```bash
 cd backend
-python3 -m pytest -q
+python3 -m venv .venv
+.venv/bin/pip install -r requirements.txt
+.venv/bin/python -m pytest -q
 ```
 
-## Важные env-параметры
+Тесты используют временную SQLite и подменяют транспорт checker/Redis. Они не обращаются к рабочим интеграциям. Полная интеграционная проверка PostgreSQL, Redis, Celery и настоящего WebSocket через Nginx выполняется отдельно на **одноразовом** стеке.
 
-- `MATCHMAKING_DELAY_SECONDS` — задержка перед стартом раунда, чтобы улучшить подбор
-- `ROUND_DURATION_MINUTES` — лимит раунда
-- `DISCONNECT_GRACE_SECONDS` — grace-период при полном дисконнекте комнаты
-- `ROUND_TIMEOUT_POLL_SECONDS` — период celery beat-проверки таймаутов
-- `CELERY_ENABLED` — включение celery-задач
-- `CELERY_BROKER_URL` / `CELERY_RESULT_BACKEND` — broker/backend celery
-- `GEEKPASTE_CALLBACK_*` — параметры верификации callback
-- `SUBMISSION_CHECK_TIMEOUT_SECONDS` — через сколько секунд ожидания callback посылка автоматически помечается как невыполненная (по умолчанию `180`)
-- `AUTO_CREATE_DB` — автосоздание таблиц на startup (рекомендуется `false`, использовать `true` только для временных локальных экспериментов без Alembic)
+Frontend (Node.js 22 актуального patch-релиза):
+
+```bash
+cd frontend
+npm ci
+npm test
+npm run build
+npm audit
+```
+
+### Проверка полного стека
+
+Создайте `/tmp/gcb-smoke.env` с локальными тестовыми значениями:
+
+```dotenv
+SECRET_KEY=local-smoke-secret
+JWT_SECRET=local-smoke-jwt
+POSTGRES_PASSWORD=local-smoke-db
+FRONTEND_URL=http://localhost:18090
+BACKEND_URL=http://host.docker.internal:18090
+FRONTEND_PORT=18090
+SESSION_COOKIE_SECURE=false
+GEEKPASTE_API_URL=http://host.docker.internal:18084/api/external/check
+MATCHMAKING_DELAY_SECONDS=1
+```
+
+На Docker Desktop `host.docker.internal` доступен из контейнеров. На Linux добавьте `extra_hosts: ["host.docker.internal:host-gateway"]` для backend и обеспечьте доступ контейнера к локальной заглушке checker (скрипт по умолчанию слушает loopback).
+
+```bash
+docker compose --env-file /tmp/gcb-smoke.env -p gcb-smoke up -d --build
+backend/.venv/bin/pip install websocket-client
+GCB_SMOKE_JWT_SECRET=local-smoke-jwt backend/.venv/bin/python backend/scripts/smoke_stack.py
+# Удалять volumes можно только у этого одноразового проекта:
+docker compose --env-file /tmp/gcb-smoke.env -p gcb-smoke down -v
+```
+
+Скрипт создаёт тестовые данные, проверяет вход по инвайту, отложенный подбор Celery, доставку событий через Redis, запрет чужого доступа, повтор callback, сдачу, переоценку, остановку, завершение и доступ к результатам. Реальные GeekClass/GeekPaste не вызываются.
+
+## Настройки
+
+- `ROUND_DURATION_MINUTES`, `POST_WIN_GRACE_MINUTES` — длительность раунда и дорешивания.
+- `MATCHMAKING_DELAY_SECONDS` — окно набора соперников.
+- `DISCONNECT_GRACE_SECONDS`, `ROUND_TIMEOUT_POLL_SECONDS` — отключения и период проверки таймаутов.
+- `SUBMISSION_CHECK_TIMEOUT_SECONDS` — ожидание checker (180 секунд по умолчанию).
+- `GEEKPASTE_CALLBACK_*` — подпись, срок действия и дедупликация callback.
+- `GUNICORN_THREADS`, `GUNICORN_TIMEOUT` — потоки и таймаут веб-сервера.
+- `FRONTEND_PORT` — локальный порт production frontend (8090).
+- `SOCKETIO_MESSAGE_QUEUE`, `CELERY_BROKER_URL`, `CELERY_RESULT_BACKEND` — Redis для прямого запуска; Compose задаёт внутренние адреса.
+- `AUTO_CREATE_DB=false` — в production используются миграции из `backend/migrations`.

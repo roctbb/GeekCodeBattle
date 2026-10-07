@@ -8,6 +8,8 @@ from ..api.responses import ok, fail
 from ..api.serializers import participant_out
 from ..api.validators import VALID_LANGUAGES
 from ..auth import login_required
+from ..auth import current_user
+from ..access import can_read_room, can_read_battle
 from ..services import rooms_service, realtime_service
 from ..services.scoring_service import get_winner_info, try_finalize_after_submission
 from ..services.matchmaker_service import run_matchmaking
@@ -194,6 +196,8 @@ def get_room(room_id):
     room = rooms_service.get_room_or_none(room_id)
     if not room:
         return fail("Not found", 404)
+    if not can_read_room(current_user(), room):
+        return fail("Forbidden", 403)
 
     match = rooms_service.get_last_match(room.id)
     if match and match.finished_at is None:
@@ -318,6 +322,9 @@ def get_room(room_id):
 @rooms_bp.get("/battles/<battle_id>/my-room")
 @login_required
 def my_room(battle_id):
+    from ..services.battles_service import get_battle_or_none
+    if not can_read_battle(current_user(), get_battle_or_none(battle_id)):
+        return fail("Forbidden", 403)
     room = rooms_service.find_active_room_for_user(battle_id, session["user_id"])
     if not room:
         return ok({"room_id": None, "match_id": None})
@@ -328,6 +335,8 @@ def my_room(battle_id):
 @rooms_bp.post("/rooms/<room_id>/submit")
 @login_required
 def submit(room_id):
+    from ..services.scoring_service import lock_scoring
+    lock_scoring()
     room = rooms_service.get_room_or_none(room_id)
     if not room:
         return fail("Not found", 404)
@@ -335,12 +344,18 @@ def submit(room_id):
     data = request.get_json() or {}
     language = data.get("language")
     source_code = data.get("source_code", "")
+    if not isinstance(source_code, str) or not source_code.strip():
+        return fail("source_code must be non-empty text", 400)
     if language not in VALID_LANGUAGES:
         return fail("language must be one of: python, cpp", 400)
     if len(source_code.encode("utf-8")) > 256 * 1024:
         return fail("source_code is too large", 413)
 
     match = rooms_service.get_last_match(room.id)
+    if match:
+        # Serialize submissions for a room before inspecting pending attempts.
+        from ..models import Match
+        match = Match.query.filter_by(id=match.id).with_for_update().populate_existing().first()
     if not match or match.finished_at is not None:
         return fail("No active match", 400)
     participant = rooms_service.get_match_participant(match.id, session["user_id"])
@@ -375,7 +390,8 @@ def submit(room_id):
             check_config=(task.config_json if task else {}),
         )
     except Exception as exc:
-        rooms_service.mark_submission_checker_error(submission, exc)
+        if not rooms_service.mark_submission_checker_error(submission, exc):
+            return ok({"submission_id": str(submission.id), "status": submission.verdict}, 202)
         realtime_service.emit_submission_verdict(
             match.id,
             submission.student_id,
@@ -393,6 +409,8 @@ def submit(room_id):
 @rooms_bp.post("/rooms/<room_id>/surrender")
 @login_required
 def surrender(room_id):
+    from ..services.scoring_service import lock_scoring
+    lock_scoring()
     room = rooms_service.get_room_or_none(room_id)
     if not room:
         return fail("Not found", 404)

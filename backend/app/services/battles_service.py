@@ -4,6 +4,7 @@ from flask import current_app
 from ..extensions import db
 from ..models import (
     Battle,
+    BattleMember,
     Room,
     Match,
     MatchParticipant,
@@ -108,7 +109,19 @@ def remove_task_from_battle(battle, task_id):
 
 
 def get_battle_or_none(battle_id):
-    return db.session.get(Battle, as_uuid(battle_id))
+    try:
+        return db.session.get(Battle, as_uuid(battle_id))
+    except (ValueError, TypeError, AttributeError):
+        return None
+
+
+def get_battle_for_transition(battle_id):
+    from .scoring_service import lock_scoring
+    lock_scoring()
+    battle = get_battle_or_none(battle_id)
+    if battle:
+        db.session.refresh(battle)
+    return battle
 
 
 def create_battle(*, title: str, created_by, room_size: int = 2, package_ids=None):
@@ -137,27 +150,35 @@ def open_lobby(battle):
 
 def start_battle(battle):
     battle.status = "running"
-    battle.started_at = datetime.now(timezone.utc)
+    if battle.started_at is None:
+        battle.started_at = datetime.now(timezone.utc)
+    battle.stopped_at = None
     db.session.commit()
     return battle
 
 
-def stop_battle(battle):
+def stop_battle(battle, *, commit=True):
+    from .scoring_service import lock_scoring
+    lock_scoring()
     battle.status = "stopped"
+    battle.stopped_at = datetime.now(timezone.utc)
+    QueueEntry.query.filter_by(battle_id=battle.id).update({"is_ready": False})
     active_rooms = Room.query.filter_by(battle_id=battle.id, status="active").all()
     for room in active_rooms:
         match = Match.query.filter_by(room_id=room.id, finished_at=None).first()
         if match:
-            finalize_match(match, finished_by="teacher_stop")
+            finalize_match(match, finished_by="teacher_stop", commit=False)
         else:
             room.status = "finished"
             room.finished_at = datetime.now(timezone.utc)
-    db.session.commit()
+    db.session.commit() if commit else db.session.flush()
     return battle
 
 
 def finish_battle(battle):
-    stop_battle(battle)
+    if battle.status == "finished":
+        return battle
+    stop_battle(battle, commit=False)
     battle.status = "finished"
     battle.finished_at = datetime.now(timezone.utc)
     db.session.commit()
@@ -184,6 +205,9 @@ def delete_finished_battle(battle):
         )
         match_ids = [match_id for (match_id,) in match_rows]
 
+    if match_ids and ScoreEvent.query.filter(ScoreEvent.match_id.in_(match_ids)).first():
+        return False, "scoring_history_exists"
+
     if match_ids:
         db.session.query(Submission).filter(Submission.match_id.in_(match_ids)).delete(synchronize_session=False)
         db.session.query(MatchParticipant).filter(MatchParticipant.match_id.in_(match_ids)).delete(synchronize_session=False)
@@ -194,6 +218,7 @@ def delete_finished_battle(battle):
     if room_ids:
         db.session.query(Room).filter(Room.id.in_(room_ids)).delete(synchronize_session=False)
 
+    db.session.query(BattleMember).filter(BattleMember.battle_id == battle.id).delete(synchronize_session=False)
     db.session.query(QueueEntry).filter(QueueEntry.battle_id == battle.id).delete(synchronize_session=False)
     db.session.query(BattleTask).filter(BattleTask.battle_id == battle.id).delete(synchronize_session=False)
     db.session.query(BattleTaskPackage).filter(BattleTaskPackage.battle_id == battle.id).delete(synchronize_session=False)
@@ -571,7 +596,8 @@ def recheck_battle_submission(*, battle_id, submission_id, callback_url):
             check_config=(task.config_json if task else {}),
         )
     except Exception as exc:
-        rooms_service.mark_submission_checker_error(cloned, exc)
+        if not rooms_service.mark_submission_checker_error(cloned, exc):
+            return {"submission": cloned, "external": {}}, None
         realtime_service.emit_submission_verdict(
             match.id,
             cloned.student_id,

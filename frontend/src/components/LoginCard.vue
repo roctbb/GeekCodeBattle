@@ -30,7 +30,7 @@
         </div>
         <button class="btn btn-outline-secondary" @click="$emit('dev-login')">Тестовый вход</button>
       </template>
-      <p class="text-muted mb-0" v-else>Перенаправляем в GeekClass для входа...</p>
+      <div v-else><p class="text-muted">Войдите через GeekClass, чтобы присоединиться к сражению.</p><button class="btn btn-primary" :disabled="!geekclassEnabled" @click="$emit('login')">Войти через GeekClass</button></div>
     </div>
   </section>
 </template>
@@ -39,9 +39,10 @@
 defineProps({
   loginForm: { type: Object, required: true },
   devLoginEnabled: { type: Boolean, default: false }
+  ,geekclassEnabled: { type: Boolean, default: true }
 })
 
-defineEmits(['dev-login'])
+defineEmits(['dev-login', 'login'])
 </script>
 
 <style scoped>

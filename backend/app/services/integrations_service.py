@@ -77,8 +77,10 @@ def mark_callback_processed(payload, callback_id):
 
 
 def apply_checker_result(payload):
+    from .scoring_service import lock_scoring
+    lock_scoring()
     callback_id = payload.get("callback_id")
-    submission = db.session.get(Submission, as_uuid(callback_id))
+    submission = Submission.query.filter_by(id=as_uuid(callback_id)).with_for_update().populate_existing().first()
     if not submission:
         return None
     if submission.verdict != "queued":

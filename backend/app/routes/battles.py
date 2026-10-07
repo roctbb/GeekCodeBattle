@@ -1,11 +1,14 @@
 from flask import Blueprint, request, session
+import secrets
+from sqlalchemy.exc import IntegrityError
 from sqlalchemy import and_
 
 from ..api.responses import ok, fail
 from ..api.serializers import battle_out, task_out, task_package_out
-from ..auth import login_required, role_required
+from ..auth import login_required, role_required, current_user
+from ..access import can_read_battle
 from ..services import battles_service, matchmaker_service, realtime_service, presence_runtime
-from ..models import MatchParticipant, Match, Room, User, ScoreEvent
+from ..models import MatchParticipant, Match, Room, User, ScoreEvent, Battle, BattleMember
 from ..extensions import db
 
 
@@ -15,7 +18,11 @@ battles_bp = Blueprint("battles", __name__, url_prefix="/api/v1")
 @battles_bp.get("/battles")
 @login_required
 def list_battles():
-    return ok([battle_out(b) for b in battles_service.list_battles()])
+    user = current_user()
+    rows = battles_service.list_battles()
+    if user.role not in {"teacher", "admin"}:
+        rows = Battle.query.join(BattleMember).filter(BattleMember.user_id == user.id).order_by(Battle.created_at.desc()).all()
+    return ok([battle_out(b, include_invite=user.role in {"teacher", "admin"}) for b in rows])
 
 
 @battles_bp.post("/battles")
@@ -45,7 +52,7 @@ def create_battle():
         room_size=room_size,
         package_ids=package_ids,
     )
-    return ok(battle_out(battle), 201)
+    return ok(battle_out(battle, include_invite=True), 201)
 
 
 @battles_bp.get("/battles/<battle_id>")
@@ -54,8 +61,10 @@ def get_battle(battle_id):
     battle = battles_service.get_battle_or_none(battle_id)
     if not battle:
         return fail("Not found", 404)
+    if not can_read_battle(current_user(), battle):
+        return fail("Forbidden", 403)
     battles_service.tick_timeouts(battle)
-    return ok(battle_out(battle))
+    return ok(battle_out(battle, include_invite=current_user().role in {"teacher", "admin"}))
 
 
 @battles_bp.patch("/battles/<battle_id>")
@@ -73,42 +82,48 @@ def update_battle(battle_id):
             return fail("title cannot be empty", 400)
 
     battle = battles_service.update_battle(battle, title=title)
-    return ok(battle_out(battle))
+    return ok(battle_out(battle, include_invite=True))
 
 
 @battles_bp.post("/battles/<battle_id>/open-lobby")
 @role_required("teacher", "admin")
 def open_lobby(battle_id):
-    battle = battles_service.get_battle_or_none(battle_id)
+    battle = battles_service.get_battle_for_transition(battle_id)
     if not battle:
         return fail("Not found", 404)
-    if battle.status == "finished":
-        return fail("Battle is finished", 400)
+    if battle.status not in {"draft", "stopped"}:
+        return fail("Invalid status transition", 409)
+    if not battle.invite_code:
+        return fail("Привяжите инвайт перед открытием лобби.", 422)
     opened = battles_service.open_lobby(battle)
     realtime_service.emit_battle_status_changed(opened.id, opened.status)
-    return ok(battle_out(opened))
+    return ok(battle_out(opened, include_invite=True))
 
 
 @battles_bp.post("/battles/<battle_id>/start")
 @role_required("teacher", "admin")
 def start_battle(battle_id):
-    battle = battles_service.get_battle_or_none(battle_id)
+    battle = battles_service.get_battle_for_transition(battle_id)
     if not battle:
         return fail("Not found", 404)
     if battle.status not in {"lobby_open", "stopped", "draft"}:
         return fail("Invalid status transition", 400)
+    if not battle.invite_code:
+        return fail("Привяжите инвайт перед запуском батла.", 422)
+    if not battles_service.list_battle_tasks(battle.id):
+        return fail("Добавьте задачи перед запуском батла.", 422)
     started = battles_service.start_battle(battle)
     created_rooms = matchmaker_service.run_matchmaking(started.id)
     realtime_service.emit_battle_status_changed(started.id, started.status)
     for room in created_rooms:
         realtime_service.emit_match_found(room)
-    return ok({"battle": battle_out(started), "created_rooms": created_rooms})
+    return ok({"battle": battle_out(started, include_invite=True), "created_rooms": created_rooms})
 
 
 @battles_bp.post("/battles/<battle_id>/stop")
 @role_required("teacher", "admin")
 def stop_battle(battle_id):
-    battle = battles_service.get_battle_or_none(battle_id)
+    battle = battles_service.get_battle_for_transition(battle_id)
     if not battle:
         return fail("Not found", 404)
     if battle.status != "running":
@@ -116,19 +131,19 @@ def stop_battle(battle_id):
     stopped = battles_service.stop_battle(battle)
     realtime_service.emit_battle_status_changed(stopped.id, stopped.status)
     realtime_service.emit_leaderboard_updated(stopped.id)
-    return ok(battle_out(stopped))
+    return ok(battle_out(stopped, include_invite=True))
 
 
 @battles_bp.post("/battles/<battle_id>/finish")
 @role_required("teacher", "admin")
 def finish_battle(battle_id):
-    battle = battles_service.get_battle_or_none(battle_id)
+    battle = battles_service.get_battle_for_transition(battle_id)
     if not battle:
         return fail("Not found", 404)
     finished = battles_service.finish_battle(battle)
     realtime_service.emit_battle_status_changed(finished.id, finished.status)
     realtime_service.emit_leaderboard_updated(finished.id)
-    return ok(battle_out(finished))
+    return ok(battle_out(finished, include_invite=True))
 
 
 @battles_bp.delete("/battles/<battle_id>")
@@ -141,6 +156,8 @@ def delete_battle(battle_id):
     deleted, err = battles_service.delete_finished_battle(battle)
     if err == "battle_not_finished":
         return fail("Only finished battles can be deleted", 400)
+    if err == "scoring_history_exists":
+        return fail("Scored battles must be retained for rating history", 409)
     if not deleted:
         return fail("Delete failed", 400)
 
@@ -153,6 +170,8 @@ def leaderboard(battle_id):
     battle = battles_service.get_battle_or_none(battle_id)
     if not battle:
         return fail("Not found", 404)
+    if not can_read_battle(current_user(), battle):
+        return fail("Forbidden", 403)
     battles_service.tick_timeouts(battle)
 
     battle_points_expr = db.func.coalesce(db.func.sum(ScoreEvent.points_delta), 0)
@@ -240,7 +259,8 @@ def battle_submission_recheck(battle_id, submission_id):
     if not battle:
         return fail("Not found", 404)
 
-    callback_url = request.host_url.rstrip("/") + "/api/v1/integrations/geekpaste/callback"
+    from .rooms import _callback_base_url
+    callback_url = _callback_base_url() + "/api/v1/integrations/geekpaste/callback"
     result, err = battles_service.recheck_battle_submission(
         battle_id=battle.id,
         submission_id=submission_id,
@@ -262,7 +282,7 @@ def battle_submission_recheck(battle_id, submission_id):
 
 
 @battles_bp.get("/battles/<battle_id>/tasks")
-@login_required
+@role_required("teacher", "admin")
 def battle_tasks(battle_id):
     battle = battles_service.get_battle_or_none(battle_id)
     if not battle:
@@ -271,7 +291,7 @@ def battle_tasks(battle_id):
 
 
 @battles_bp.get("/battles/<battle_id>/task-packages")
-@login_required
+@role_required("teacher", "admin")
 def battle_task_packages(battle_id):
     battle = battles_service.get_battle_or_none(battle_id)
     if not battle:
@@ -322,3 +342,41 @@ def remove_task(battle_id, task_id):
         return fail("Not found", 404)
     removed = battles_service.remove_task_from_battle(battle, task_id)
     return ok({"removed": removed})
+
+
+@battles_bp.put("/battles/<battle_id>/invite")
+@role_required("teacher", "admin")
+def set_battle_invite(battle_id):
+    from ..services.invites_service import normalize_invite
+    battle = battles_service.get_battle_for_transition(battle_id)
+    if not battle:
+        return fail("Not found", 404)
+    if battle.status == "finished":
+        return fail("Завершённый батл нельзя изменять.", 409)
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return fail("Ожидается код инвайта.", 400)
+    code = secrets.token_hex(4).upper() if data.get('generate') else normalize_invite(data.get('code'))
+    if not code:
+        return fail("Инвайт: 4–32 латинские буквы, цифры, дефис или подчёркивание.", 422)
+    battle.invite_code = code
+    try:
+        db.session.commit()
+    except IntegrityError:
+        db.session.rollback()
+        return fail("Этот инвайт уже привязан к другому батлу.", 409)
+    return ok({"invite_code": code})
+
+
+@battles_bp.post("/battles/join")
+@login_required
+def join_by_invite():
+    from ..services.invites_service import admit
+    data = request.get_json(silent=True) or {}
+    if not isinstance(data, dict):
+        return fail("Введите инвайт преподавателя.", 400)
+    battle, error = admit(current_user(), code=data.get('code'))
+    if error:
+        return fail(*error)
+    realtime_service.emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
+    return ok(battle_out(battle))

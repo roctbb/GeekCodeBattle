@@ -105,9 +105,12 @@ def submit_to_checker(*, submission, callback_url, task_text="", check_type="tes
 
 
 def mark_submission_checker_error(submission, details):
-    submission.verdict = "internal_error"
-    submission.checker_comment_raw = str(details)
+    # A callback may arrive before the checker HTTP request times out.
+    changed = Submission.query.filter_by(id=submission.id, verdict="queued").update(
+        {"verdict": "internal_error", "checker_comment_raw": str(details)}, synchronize_session=False)
     db.session.commit()
+    db.session.refresh(submission)
+    return bool(changed)
 
 
 def _as_utc(dt):
@@ -128,7 +131,10 @@ def expire_stale_submissions(match_id, battle_id=None):
 
     queued = (
         Submission.query
-        .filter_by(match_id=as_uuid(match_id), verdict="queued")
+        .filter(Submission.match_id == as_uuid(match_id), Submission.verdict == "queued",
+                Submission.created_at <= cutoff)
+        .with_for_update(skip_locked=True)
+        .populate_existing()
         .all()
     )
     expired = []
@@ -136,11 +142,11 @@ def expire_stale_submissions(match_id, battle_id=None):
         created_at = _as_utc(submission.created_at)
         if created_at is None or created_at > cutoff:
             continue
-        submission.verdict = "wrong_answer"
+        submission.verdict = "internal_error"
         submission.progress_value = 0
         submission.checker_status_raw = "timeout"
         submission.checker_comment_raw = (
-            f"Checker timeout: no result received within {timeout_seconds} seconds"
+            f"Проверяющая система не ответила за {timeout_seconds} сек. Отправьте решение повторно."
         )
         submission.callback_received_at = now
         expired.append(submission)

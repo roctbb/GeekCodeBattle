@@ -1,5 +1,5 @@
 from .user import User
-from .battle import Battle
+from .battle import Battle, BattleMember
 from .task import Task, BattleTask
 from .task_package import TaskPackage, TaskPackageTask, BattleTaskPackage
 from .queue import QueueEntry
@@ -12,6 +12,7 @@ from .audit import AuditLog
 __all__ = [
     "User",
     "Battle",
+    "BattleMember",
     "Task",
     "BattleTask",
     "TaskPackage",

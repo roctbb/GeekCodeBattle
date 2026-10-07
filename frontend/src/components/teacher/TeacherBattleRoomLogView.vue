@@ -5,7 +5,7 @@
         <div>
           <h2 class="h5 mb-1 d-flex align-items-center gap-2">
             Комната {{ shortId(roomLog.room.room_id) }}
-            <span class="badge" :class="roomStatusClass(roomLog.room.status)">{{ roomLog.room.status }}</span>
+            <span class="badge" :class="roomStatusClass(roomLog.room.status)">{{ roomLog.room.status === 'active' ? 'Идёт раунд' : 'Завершена' }}</span>
           </h2>
           <p class="text-muted mb-0">Детальный журнал по раундам, участникам и отправкам решений.</p>
         </div>
@@ -45,19 +45,19 @@
               <p class="round-eyebrow mb-1">Раунд {{ index + 1 }}</p>
               <h3 class="h6 mb-1">{{ match.task?.title || `ID ${shortId(match.match_id)}` }}</h3>
               <p class="text-muted mb-0 d-flex flex-wrap align-items-center gap-2">
-                <span class="badge difficulty-badge" :class="`difficulty-${match.task?.difficulty || 'unknown'}`">{{ match.task?.difficulty || 'unknown' }}</span>
+                <span class="badge difficulty-badge" :class="`difficulty-${match.task?.difficulty || 'unknown'}`">{{ difficultyLabel(match.task?.difficulty) }}</span>
                 <span>{{ formatDate(match.created_at) }}</span>
               </p>
             </div>
             <div class="round-stats">
               <span class="badge text-bg-light border">Посылок: {{ match.submissions?.length || 0 }}</span>
-              <span class="badge text-bg-light border">Accepted: {{ acceptedCount(match) }}</span>
+              <span class="badge text-bg-light border">Принято: {{ acceptedCount(match) }}</span>
             </div>
           </div>
 
           <section class="task-statement mb-3" v-if="match.task?.statement_md">
             <div class="task-statement-label">Условие задачи</div>
-            <pre class="task-statement-text">{{ match.task.statement_md }}</pre>
+            <MarkdownText :source="match.task.statement_md" />
           </section>
 
           <div class="mb-3" v-if="match.participants?.length">
@@ -76,7 +76,7 @@
                     </span>
                   </span>
                   <div class="d-flex align-items-center gap-1">
-                    <span class="badge" :class="resultClass(p.result_type)">{{ p.result_type || 'pending' }}</span>
+                    <span class="badge" :class="resultClass(p.result_type)">{{ resultLabel(p.result_type) }}</span>
                   </div>
                 </div>
                 <div class="progress-track">
@@ -88,13 +88,14 @@
             </div>
           </div>
 
+          <TeacherRejudgeForm :match="match" @saved="$emit('rejudged')" />
           <div class="submissions-stack" v-if="match.submissions?.length">
             <article class="submission-item" v-for="s in match.submissions" :key="s.submission_id">
               <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-2">
                 <div class="d-flex flex-wrap align-items-center gap-2">
                   <strong>{{ s.student.name }}</strong>
                   <span class="badge text-bg-light border">{{ s.language || '—' }}</span>
-                  <span class="badge" :class="verdictClass(s.verdict)">{{ s.verdict || 'unknown' }}</span>
+                  <span class="badge" :class="verdictClass(s.verdict)">{{ verdictLabel(s.verdict) }}</span>
                 </div>
                 <small class="text-muted">{{ formatDate(s.created_at) }} · тесты {{ testsText(s) }}</small>
               </div>
@@ -124,13 +125,16 @@
 
 <script setup>
 import { computed } from 'vue'
+import MarkdownText from '../MarkdownText.vue'
+import TeacherRejudgeForm from './TeacherRejudgeForm.vue'
+import { difficultyLabel, resultLabel, verdictLabel } from '../../labels'
 
 const props = defineProps({
   roomLog: { type: Object, default: null },
   recheckingSubmissionIds: { type: Array, default: () => [] }
 })
 
-defineEmits(['back', 'recheck-submission'])
+defineEmits(['back', 'recheck-submission', 'rejudged'])
 
 const matches = computed(() => (props.roomLog?.matches || []))
 const roomSummary = computed(() => {
@@ -223,7 +227,7 @@ function isRechecking(submissionId) {
 .overview-tile {
   border: 1px solid #d9e2f6;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f9fbff 0%, #f4f8ff 100%);
+  background: var(--app-card);
   padding: 0.75rem;
 }
 
@@ -345,7 +349,7 @@ function isRechecking(submissionId) {
 .progress-bar {
   height: 100%;
   border-radius: inherit;
-  background: linear-gradient(90deg, #2b5fff 0%, #0ea5a4 100%);
+  background: var(--app-brand);
   transition: width 220ms ease-out;
 }
 
@@ -375,7 +379,7 @@ function isRechecking(submissionId) {
   border-radius: 10px;
   background: #0f1727;
   color: #e3ecff;
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   font-size: 0.82rem;
 }
 

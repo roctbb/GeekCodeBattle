@@ -9,7 +9,7 @@
 
       <div class="hero-meta ms-auto">
         <div class="hero-count">{{ battles.length }}</div>
-        <div class="hero-count-label">всего баттлов</div>
+        <div class="hero-count-label">всего батлов</div>
       </div>
 
       <button class="btn btn-primary action-btn" title="Добавить сражение" aria-label="Добавить сражение" @click="$emit('toggle-create')">
@@ -21,7 +21,7 @@
     <div class="hero-stats" v-if="battles.length">
       <span class="hero-stat-chip">Черновики: {{ draftCount }}</span>
       <span class="hero-stat-chip">В процессе: {{ activeCount }}</span>
-      <span class="hero-stat-chip">Завершено: {{ finishedCount }}</span>
+      <span class="hero-stat-chip">Прошедшие: {{ finishedCount }}</span>
     </div>
   </section>
 
@@ -61,35 +61,36 @@
     <div class="card-body">
       <div class="d-flex align-items-center justify-content-between mb-3">
         <h3 class="h6 mb-0">Список сражений</h3>
-        <span class="text-muted small">{{ battles.length }}</span>
+        <div class="btn-group btn-group-sm" role="group" aria-label="Период батлов"><button class="btn" :class="filter === 'current' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='current'">Текущие</button><button class="btn" :class="filter === 'past' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='past'">Прошедшие</button><button class="btn" :class="filter === 'all' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='all'">Все</button></div>
       </div>
 
-      <div class="battle-grid" v-if="battles.length">
-        <article class="battle-tile" v-for="b in battles" :key="b.id">
+      <div class="battle-grid" v-if="filteredBattles.length">
+        <article class="battle-tile" v-for="b in filteredBattles" :key="b.id">
           <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
             <div>
               <strong class="d-block mb-1">{{ b.title }}</strong>
-              <small class="status-chip" :class="`status-${b.status}`">{{ b.status }}</small>
+              <small class="status-chip" :class="`status-${b.status}`">{{ battleStatus(b.status) }}</small>
             </div>
-            <span class="battle-id">{{ shortId(b.id) }}</span>
+            <span v-if="b.invite_code" class="battle-id">{{ b.invite_code }}</span><span v-else class="small text-muted">Без инвайта</span>
           </div>
 
           <button class="btn btn-outline-primary btn-sm w-100 action-btn action-btn-sm" @click="$emit('open-battle', b.id)">
-            <span>Открыть батл</span>
+            <span>{{ ['stopped','finished'].includes(b.status) ? 'Результаты и статистика' : 'Управление и статистика' }}</span>
             <i class="bi bi-chevron-right" aria-hidden="true"></i>
           </button>
         </article>
       </div>
 
       <div class="empty-state" v-else>
-        Пока нет сражений. Создайте первое, чтобы открыть лобби для учеников.
+        {{ battles.length ? 'Нет батлов в этом разделе.' : 'Создайте батл, подключите задачи и задайте инвайт для учеников.' }}
       </div>
     </div>
   </section>
 </template>
 
 <script setup>
-import { computed } from 'vue'
+import { battleStatus } from '../../labels'
+import { computed, ref } from 'vue'
 
 const props = defineProps({
   showCreateBattleForm: { type: Boolean, default: false },
@@ -107,13 +108,12 @@ defineEmits([
   'open-battle'
 ])
 
-const draftCount = computed(() => (props.battles || []).filter((b) => b?.status === 'draft').length)
-const activeCount = computed(() => (props.battles || []).filter((b) => b?.status === 'running' || b?.status === 'lobby_open' || b?.status === 'stopped').length)
-const finishedCount = computed(() => (props.battles || []).filter((b) => b?.status === 'finished').length)
+const filter = ref('current')
+const filteredBattles = computed(() => props.battles.filter(b => filter.value === 'all' || (filter.value === 'past' ? ['stopped','finished'].includes(b.status) : !['stopped','finished'].includes(b.status))))
 
-function shortId(id) {
-  return String(id || '').slice(0, 8)
-}
+const draftCount = computed(() => (props.battles || []).filter((b) => b?.status === 'draft').length)
+const activeCount = computed(() => (props.battles || []).filter((b) => ['running', 'lobby_open'].includes(b?.status)).length)
+const finishedCount = computed(() => (props.battles || []).filter((b) => ['stopped', 'finished'].includes(b?.status)).length)
 </script>
 
 <style scoped>
@@ -134,7 +134,7 @@ function shortId(id) {
   padding: 0.4rem 0.7rem;
   border: 1px solid #d8e4fb;
   border-radius: 12px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f3f8ff 100%);
+  background: var(--app-card);
 }
 
 .hero-count {
@@ -171,7 +171,7 @@ function shortId(id) {
 .create-panel {
   border: 1px solid #dbe5f8;
   border-radius: 12px;
-  background: linear-gradient(180deg, #f9fbff 0%, #f5f9ff 100%);
+  background: var(--app-card);
   padding: 0.9rem;
 }
 
@@ -198,7 +198,7 @@ function shortId(id) {
 .battle-tile {
   border: 1px solid #dbe5f9;
   border-radius: 12px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f8fbff 100%);
+  background: var(--app-card);
   padding: 0.8rem;
   transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
 }
@@ -210,7 +210,7 @@ function shortId(id) {
 }
 
 .battle-id {
-  font-family: 'JetBrains Mono', monospace;
+  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   font-size: 0.7rem;
   color: #687ba4;
   border: 1px solid #d9e4fb;

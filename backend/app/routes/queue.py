@@ -1,10 +1,11 @@
 from datetime import datetime, timezone
 
-from flask import Blueprint, session, current_app
+from flask import Blueprint, session, current_app, request
 from sqlalchemy import or_
 
 from ..api.responses import ok, fail
-from ..auth import login_required
+from ..auth import login_required, current_user
+from ..access import can_read_battle, is_battle_member
 from ..services import queue_service, matchmaker_service, realtime_service, presence_runtime
 from ..models import QueueEntry, User, MatchParticipant, Match, Room
 from ..extensions import db
@@ -27,6 +28,8 @@ def queue_state(battle_id):
     battle = queue_service.get_battle_or_none(battle_id)
     if not battle:
         return fail("Battle not found", 404)
+    if not can_read_battle(current_user(), battle):
+        return fail("Forbidden", 403)
     queue_rows = (
         db.session.query(QueueEntry, User)
         .join(User, User.id == QueueEntry.user_id)
@@ -154,9 +157,14 @@ def queue_join(battle_id):
     if not battle:
         return fail("Battle not found", 404)
 
-    entry, created = queue_service.join_queue(battle_id=battle_id, user_id=session["user_id"])
+    from ..services.invites_service import admit
+    data = request.get_json(silent=True) or {}
+    joined, error = admit(current_user(), code=data.get('code') if isinstance(data, dict) else None, battle_id=battle.id)
+    if error:
+        return fail(*error)
     realtime_service.emit_queue_updated(battle.id, {"battle_id": str(battle.id)})
-    return ok({"status": "joined" if created else "already_joined", "id": str(entry.id), "created_rooms": []})
+    return ok({"status": "joined", "created_rooms": []})
+
 
 
 @queue_bp.post("/battles/<battle_id>/queue/leave")
@@ -178,6 +186,10 @@ def queue_ready(battle_id):
     if not battle:
         return fail("Battle not found", 404)
 
+    if not is_battle_member(current_user(), battle):
+        return fail("Для входа нужен инвайт преподавателя.", 403)
+    if battle.status not in {"lobby_open", "running"}:
+        return fail("Батл остановлен или завершён.", 409)
     entry = queue_service.set_ready(battle_id=battle_id, user_id=session["user_id"])
     if not entry:
         return fail("Join queue first", 400)

@@ -4,13 +4,24 @@
       :me="me"
       :is-teacher="isTeacher"
       :teacher-page="teacherPage"
+      :results-active="isPersonalResults"
+      @go-results="router.push('/results')"
       @go-battles="goToBattlesPage"
       @go-packages="goToPackagesPage"
       @go-play="goToPlayPage"
       @logout="logout"
     />
 
-    <main class="container py-4">
+    <main class="container py-4" :class="{ 'arena-container': myRoom.room_id && showPlayerUi && !isPersonalResults }">
+      <div v-if="me && (connectionState !== 'online' || dataError)" class="notice notice-warning mb-3" role="status">
+        <span>{{ dataError || (connectionState === 'connecting' ? 'Подключаемся к игре…' : 'Соединение потеряно. Черновик остаётся на этом устройстве.') }}</span>
+        <button class="btn btn-sm btn-outline-secondary" @click="retryConnection">Повторить</button>
+      </div>
+      <div v-if="!me && dataError" class="notice notice-warning mb-3" role="alert">{{ dataError }} <button class="btn btn-sm btn-outline-secondary" @click="reloadPage">Обновить страницу</button></div>
+      <section v-if="me && showPlayerUi && !isPersonalResults && studentJoinedBattleId && !myRoom.room_id && lastResult?.battle_id === studentJoinedBattleId" class="round-summary mb-4" aria-live="polite">
+        <div><p class="eyebrow mb-1">Последний раунд · {{ lastResult.task_title }}</p><h2 class="h5 mb-1">{{ resultLabel(lastResult.result_type) }}</h2><p class="text-muted small mb-0">{{ lastResult.is_final ? 'Результат сохранён' : 'Остальные участники ещё дорешивают. Итоговые очки появятся после завершения.' }}</p></div>
+        <div class="text-end"><strong class="result-points">+{{ lastResult.points }}</strong><span class="text-muted small d-block">очков за раунд</span></div>
+      </section>
       <section class="card shadow-sm border-0" v-if="isBootstrapping">
         <div class="card-body d-flex align-items-center gap-3 py-4">
           <div class="spinner-border spinner-border-sm text-primary" role="status" aria-hidden="true"></div>
@@ -22,23 +33,32 @@
         v-else-if="!me"
         :login-form="loginForm"
         :dev-login-enabled="authOptions.devLoginEnabled"
+        :geekclass-enabled="authOptions.geekclassEnabled"
         @dev-login="devLogin"
+        @login="geekclassLogin"
       />
 
       <template v-else>
-        <template v-if="showTeacherConsole">
+        <StudentResultsView v-if="route.name === 'my-results'" :refresh-key="reportVersion" :play-path="isTeacher ? '/play' : '/'" @resume="resumeBattle" />
+        <BattleResultDetail v-else-if="route.name === 'my-result-detail'" :path="`/me/results/${route.params.battleId}`" :refresh-key="reportVersion" @resume="resumeBattle" />
+        <template v-else-if="showTeacherConsole">
           <template v-if="teacherPage === 'battles'">
+            <BattleResultDetail v-if="isStudentReportPage" :path="`/battles/${route.params.battleId}/students/${route.params.studentId}/results`" :back-path="`/battles/${route.params.battleId}`" :task-id="route.query.task ? String(route.query.task) : undefined" :refresh-key="reportVersion" teacher />
             <TeacherBattleRoomLogView
-              v-if="isBattleRoomLogPage"
+              v-else-if="isBattleRoomLogPage"
               :room-log="selectedBattleRoomLog"
               :rechecking-submission-ids="recheckingSubmissionIds"
               @back="goToBattleDetailsPage"
               @recheck-submission="recheckSubmissionFromRoomLog"
+              @rejudged="syncData"
             />
 
             <TeacherBattleDetailsView
               v-else-if="isBattleDetailsPage"
               :selected-battle="selectedBattle"
+              :refresh-key="reportVersion"
+              @invite-saved="onInviteSaved"
+              @open-student="openStudentReport"
               :battle-tasks="battleTasks"
               :task-packages="taskPackages"
               :battle-package-ids="battlePackageIds"
@@ -123,13 +143,14 @@
             :me-id="me.id"
             :submit-language="submitForm.language"
             :submit-code="submitForm.source_code"
-            :code-extensions="codeExtensions"
-            :is-checking="isSubmissionChecking"
+            :can-submit="connectionState === 'online' && !dataError"
+            :draft-status="draftStatus"
+            :is-checking="isSubmissionChecking || isSubmitting"
             :opponent-activity="opponentActivity"
             :grace="roomData.grace"
             :round="roomData.round"
             :my-submission="roomData.mySubmission"
-            @update:submit-language="submitForm.language = $event"
+            @update:submit-language="updateSubmitLanguage"
             @update:submit-code="updateSubmitCode"
             @submit="submitCode"
             @surrender="surrenderRound"
@@ -147,11 +168,7 @@
             @leave="leaveQueue"
           />
 
-          <StudentBattleLobbyView
-            v-else
-            :battles="availableStudentBattles"
-            @join-battle="joinBattle"
-          />
+          <StudentBattleLobbyView v-else @joined="onInviteJoined" />
         </template>
       </template>
     </main>
@@ -159,6 +176,7 @@
     <section
       class="toast-msg"
       :class="`toast-${toast.kind}`"
+      role="status" aria-live="polite"
       v-if="toast.text"
     >
       <span class="toast-icon" aria-hidden="true">{{ toastIcon }}</span>
@@ -205,12 +223,10 @@
 </template>
 
 <script setup>
-import { computed, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { resultLabel, verdictLabel } from './labels'
 import api from './api'
 import { io } from 'socket.io-client'
-import { oneDark } from '@codemirror/theme-one-dark'
-import { python } from '@codemirror/lang-python'
-import { cpp } from '@codemirror/lang-cpp'
 import { useRoute, useRouter } from 'vue-router'
 import AppTopbar from './components/AppTopbar.vue'
 import LoginCard from './components/LoginCard.vue'
@@ -220,11 +236,16 @@ import TeacherBattleRoomLogView from './components/teacher/TeacherBattleRoomLogV
 import TeacherPackagesListView from './components/teacher/TeacherPackagesListView.vue'
 import TeacherPackageDetailsView from './components/teacher/TeacherPackageDetailsView.vue'
 import TeacherTaskEditorView from './components/teacher/TeacherTaskEditorView.vue'
-import StudentActiveRoomView from './components/student/StudentActiveRoomView.vue'
+const StudentActiveRoomView = defineAsyncComponent(() => import('./components/student/StudentActiveRoomView.vue'))
 import StudentBattleLobbyView from './components/student/StudentBattleLobbyView.vue'
 import StudentJoinedBattleView from './components/student/StudentJoinedBattleView.vue'
+import StudentResultsView from './components/results/StudentResultsView.vue'
+import BattleResultDetail from './components/results/BattleResultDetail.vue'
 
 const me = ref(null)
+const reportVersion = ref(0)
+const isPersonalResults = computed(() => route.path.startsWith('/results'))
+const isStudentReportPage = computed(() => route.name === 'battle-student-results')
 const battles = ref([])
 const selectedBattleId = ref(null)
 const studentJoinedBattleId = ref(null)
@@ -276,7 +297,7 @@ const bonusBanner = reactive({ text: '', id: 0 })
 const burstParticles = ref([])
 let particleSeq = 0
 const leaderboardPointsMemo = reactive({})
-const audioEnabled = ref(true)
+const audioEnabled = ref(false)
 const streak = ref(0)
 const bestStreak = ref(0)
 const roundOverlay = reactive({
@@ -289,8 +310,18 @@ const roundOverlay = reactive({
   stamp: 0
 })
 const isSubmissionChecking = ref(false)
+const isSubmitting = ref(false)
+let sessionEpoch = 0
 const opponentActivity = ref(null)
+const connectionState = ref('connecting')
+const dataError = ref('')
+const draftStatus = ref('')
+const lastResult = ref(null)
 let socket = null
+let refreshTimer = null
+let eventSyncTimer = null
+let syncPromise = null
+let syncAgain = false
 let graceRefreshTimer = null
 let audioCtx = null
 let unloadHandlersBound = false
@@ -298,7 +329,7 @@ let unloadHandlersBound = false
 const isTeacher = computed(() => me.value && (me.value.role === 'teacher' || me.value.role === 'admin'))
 const teacherPage = computed(() => {
   if (route.path.startsWith('/packages')) return 'tasks'
-  if (route.path.startsWith('/play')) return 'play'
+  if (route.path.startsWith('/play') || isPersonalResults.value) return 'play'
   return 'battles'
 })
 const teacherPlayMode = computed(() => isTeacher.value && teacherPage.value === 'play')
@@ -310,10 +341,8 @@ const isPackageDetailsPage = computed(() => route.name === 'package-details')
 const isTaskEditorPage = computed(() => route.name === 'package-task-editor')
 const isBootstrapping = computed(() => !authResolved.value || isAuthRedirecting.value || (Boolean(me.value) && !initialSyncDone.value))
 const battlePackageIds = computed(() => (battlePackages.value || []).map((p) => p.id))
-const codeExtensions = computed(() => [oneDark, submitForm.language === 'cpp' ? cpp() : python()])
 const activeBattleTitle = computed(() => battles.value.find((i) => i.id === myRoom.battle_id)?.title || null)
 const selectedPackageTask = computed(() => selectedTaskPackage.value?.tasks?.find((t) => t.id === selectedPackageTaskId.value) || null)
-const availableStudentBattles = computed(() => battles.value.filter((b) => b.status !== 'finished'))
 const myLeaderboardEntry = computed(() => {
   if (!me.value) return null
   return leaderboard.participants.find((p) => p.user_id === me.value.id) || null
@@ -510,7 +539,7 @@ function scheduleGraceRefresh() {
 }
 
 function goToBattlesPage() {
-  if (route.path !== '/battles') router.push('/battles')
+  router.push(isTeacher.value ? '/battles' : '/')
 }
 
 function goToPackagesPage() {
@@ -550,133 +579,52 @@ function closeTaskEditor() {
   router.push('/packages')
 }
 
+function scheduleSync() {
+  clearTimeout(eventSyncTimer)
+  eventSyncTimer = setTimeout(() => { if (me.value) syncData().catch(() => {}) }, 120)
+}
+
 function setupSocket() {
   if (socket) return
   socket = io('/', { withCredentials: true, closeOnBeforeunload: true })
-  socket.on('connect', () => subscribeSocket())
-  socket.on('queue_updated', () => loadQueue().catch(() => {}))
-  socket.on('battle_status_changed', async () => { await syncData() })
-  socket.on('match_found', async () => {
-    notify('Найден новый раунд!', 'bonus', { burst: true, intensity: 'high', banner: 'НОВЫЙ РАУНД' })
-    await syncData()
+  socket.on('connect', () => {
+    connectionState.value = 'online'
+    subscribeSocket()
+    syncData().catch(() => {})
   })
-  socket.on('submission_queued', async (payload) => {
-    if (!payload?.student_id || !me.value) return
-    if (!isEventForCurrentMatch(payload)) return
-    if (payload.student_id !== me.value.id) {
-      showOpponentActivity({
-        kind: 'pending',
-        message: `${findParticipantName(payload.student_id)} отправил посылку на проверку`
-      })
+  socket.on('disconnect', () => { connectionState.value = 'offline' })
+  socket.on('connect_error', () => { connectionState.value = 'offline' })
+  for (const event of ['queue_updated', 'battle_status_changed', 'match_found', 'round_finished', 'leaderboard_updated', 'presence_updated']) {
+    socket.on(event, scheduleSync)
+  }
+  socket.on('submission_queued', (payload) => {
+    if (isEventForCurrentMatch(payload) && payload.student_id !== me.value?.id) {
+      showOpponentActivity({ kind: 'pending', message: `${findParticipantName(payload.student_id)} отправил решение` })
     }
-    if (showTeacherConsole.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
-      await loadBattleLogs().catch(() => {})
-      if (isBattleRoomLogPage.value) await loadSelectedBattleRoomLog().catch(() => {})
-    }
+    scheduleSync()
   })
-  socket.on('submission_verdict', async (payload) => {
-    if (!payload?.student_id || !me.value) return
-    if (!isEventForCurrentMatch(payload)) return
-    if (payload.student_id === me.value.id) {
-      isSubmissionChecking.value = false
-      const winnerStudentId = roomData.grace?.winner_student_id ? String(roomData.grace.winner_student_id) : null
-      const currentStudentId = me.value?.id ? String(me.value.id) : null
-      const acceptedAfterKnownWinner = Boolean(winnerStudentId && currentStudentId && winnerStudentId !== currentStudentId)
-      if (payload.verdict === 'accepted') {
-        streak.value += 1
-        bestStreak.value = Math.max(bestStreak.value, streak.value)
-        if (acceptedAfterKnownWinner) {
-          notify('Решение принято, но соперник решил раньше', 'info')
-        } else {
-          notify('Правильно! Отличная отправка', 'bonus', { burst: true, intensity: 'high', banner: 'ПРАВИЛЬНЫЙ ОТВЕТ' })
-        }
-        if (!acceptedAfterKnownWinner && streak.value >= 2) {
-          showBonusBanner(`COMBO x${streak.value}`)
-        }
-        if (showPlayerUi.value) {
-          showRoundOverlay({
-            title: acceptedAfterKnownWinner ? 'Задача решена, но победа у соперника' : 'Победа в раунде!',
-            subtitle: acceptedAfterKnownWinner ? 'Раунд уже был выигран ранее. Переходим в лобби.' : 'Переходим в лобби и ждём следующий матч',
-            deltaText: 'Нажмите «Готов», когда будете готовы'
-          })
-          myRoom.room_id = null
-          myRoom.match_id = null
-          roomData.status = null
-          roomData.participants = []
-          roomData.task = null
-          roomData.grace = null
-          roomData.round = null
-          roomData.mySubmission = null
-          opponentActivity.value = null
-          subscribeSocket()
-          await syncData()
-          return
-        }
-      } else if (payload.verdict === 'wrong_answer') {
-        streak.value = 0
-        notify('Почти! Проверка не пройдена', 'warning')
+  socket.on('submission_verdict', (payload) => {
+    if (isEventForCurrentMatch(payload)) {
+      if (payload.student_id === me.value?.id) {
+        isSubmissionChecking.value = false
+        notify(verdictLabel(payload.verdict), payload.verdict === 'accepted' ? 'success' : 'info')
       } else {
-        streak.value = 0
-        notify(`Результат: ${payload.verdict || 'получен'}`, 'info')
-      }
-    } else {
-      const passed = payload.visible_tests_passed
-      const total = payload.visible_tests_total
-      const hasTests = Number.isInteger(passed) && Number.isInteger(total)
-      const resultText = hasTests ? ` (${passed}/${total} тестов)` : ''
-      const kind = payload.verdict === 'accepted' ? 'success' : (payload.verdict === 'wrong_answer' ? 'fail' : 'error')
-      showOpponentActivity({
-        kind,
-        message: `${findParticipantName(payload.student_id)} получил результат: ${payload.verdict}${resultText}`
-      })
-    }
-    await loadCurrentRoom()
-    if (showTeacherConsole.value && (isBattleDetailsPage.value || isBattleRoomLogPage.value)) {
-      await loadBattleLogs().catch(() => {})
-      if (isBattleRoomLogPage.value) await loadSelectedBattleRoomLog().catch(() => {})
-    }
-  })
-  socket.on('round_finished', async (payload) => {
-    if (showPlayerUi.value && !isEventForCurrentMatch(payload)) return
-    isSubmissionChecking.value = false
-    const meId = me.value?.id
-    const beforePoints = meId ? Number((leaderboard.participants.find((p) => p.user_id === meId)?.season_points ?? 0)) : null
-    const beforeRank = meId ? leaderboard.participants.findIndex((p) => p.user_id === meId) + 1 : null
-
-    notify('Раунд завершен', 'bonus', { burst: true, intensity: 'high', banner: 'ФИНИШ РАУНДА' })
-    playSound('round_end')
-    await syncData()
-
-    if (showPlayerUi.value && meId) {
-      const afterRank = leaderboard.participants.findIndex((p) => p.user_id === meId) + 1
-      const afterPoints = Number((leaderboard.participants.find((p) => p.user_id === meId)?.season_points ?? 0))
-      const delta = Number.isFinite(beforePoints) ? afterPoints - beforePoints : 0
-      const rankShift = Number.isFinite(beforeRank) && beforeRank > 0 && afterRank > 0 ? (beforeRank - afterRank) : 0
-      const rankText = afterRank > 0 ? `Позиция в таблице: #${afterRank}` : ''
-      const deltaText = delta > 0 ? `+${delta} очков` : (delta < 0 ? `${delta} очков` : 'Очки без изменений')
-      const streakText = streak.value > 1 ? `Текущая серия: x${streak.value}` : (bestStreak.value > 1 ? `Лучшая серия: x${bestStreak.value}` : '')
-      showRoundOverlay({
-        title: rankShift > 0 ? `Подъем на ${rankShift} поз.` : 'Раунд завершен',
-        subtitle: rankShift > 0 ? 'Отличный рывок!' : 'Смотрим итог и готовимся к следующему',
-        positionText: rankText,
-        deltaText,
-        streakText
-      })
-      if (delta > 0) {
-        triggerBurst({ intensity: delta >= 3 ? 'high' : 'normal', originX: 52, originY: 44 })
+        showOpponentActivity({ kind: payload.verdict === 'accepted' ? 'success' : 'fail', message: `${findParticipantName(payload.student_id)}: ${verdictLabel(payload.verdict)}` })
       }
     }
-  })
-  socket.on('leaderboard_updated', () => loadLeaderboard().catch(() => {}))
-  socket.on('presence_updated', async () => {
-    if (myRoom.room_id) {
-      await loadCurrentRoom().catch(() => {})
-    }
-    if (showTeacherConsole.value && isBattleRoomLogPage.value) {
-      await loadSelectedBattleRoomLog().catch(() => {})
-    }
+    scheduleSync()
   })
 }
+
+function retryConnection() {
+  socket?.connect()
+  syncData().catch(() => {})
+}
+function reloadPage() { window.location.reload() }
+function refreshOnFocus() {
+  if (me.value && document.visibilityState === 'visible') retryConnection()
+}
+function reportUiError(event) { notify(event.detail || 'Не удалось выполнить действие. Попробуйте ещё раз.', 'error') }
 
 function closeSocketForUnload() {
   if (!socket) return
@@ -730,7 +678,9 @@ function readRoomDraft(roomId) {
   if (!key) return null
   try {
     const value = window.localStorage.getItem(key)
-    return value === null ? null : String(value)
+    if (value === null) return null
+    try { const draft = JSON.parse(value); if (draft?.version === 2) return draft } catch {}
+    return { source_code: value, language: 'python' }
   } catch {
     return null
   }
@@ -741,8 +691,9 @@ function writeRoomDraft(roomId, sourceCode) {
   const key = draftStorageKey(roomId)
   if (!key) return
   try {
-    window.localStorage.setItem(key, String(sourceCode ?? ''))
-  } catch {}
+    window.localStorage.setItem(key, JSON.stringify({ version: 2, source_code: String(sourceCode ?? ''), language: submitForm.language }))
+    draftStatus.value = 'Черновик сохранён на устройстве'
+  } catch { draftStatus.value = 'Не удалось сохранить черновик' }
 }
 
 function applyDraftForRoom(roomId) {
@@ -751,7 +702,9 @@ function applyDraftForRoom(roomId) {
     return
   }
   const stored = readRoomDraft(roomId)
-  submitForm.source_code = stored !== null ? stored : DEFAULT_ROOM_SOURCE_CODE
+  submitForm.source_code = stored?.source_code ?? DEFAULT_ROOM_SOURCE_CODE
+  submitForm.language = stored?.language || 'python'
+  draftStatus.value = stored ? 'Черновик восстановлен' : 'Автосохранение на устройстве'
   draftRoomId.value = String(roomId)
 }
 
@@ -762,19 +715,25 @@ function updateSubmitCode(nextCode) {
   }
 }
 
+function updateSubmitLanguage(language) {
+  submitForm.language = language
+  if (myRoom.room_id) writeRoomDraft(myRoom.room_id, submitForm.source_code)
+}
+
 async function devLogin() {
   if (!authOptions.devLoginEnabled) {
     notify('Тестовый вход отключен', 'warning')
     return
   }
   initialSyncDone.value = false
+  try {
   const { data } = await api.post('/auth/dev-login', loginForm)
   me.value = data
   authResolved.value = true
   setupSocket()
   await syncData()
-  initialSyncDone.value = true
   subscribeSocket()
+  } finally { initialSyncDone.value = true }
 }
 
 async function loadAuthOptions() {
@@ -784,7 +743,8 @@ async function loadAuthOptions() {
     authOptions.geekclassEnabled = Boolean(data?.geekclass_enabled ?? true)
   } catch {
     authOptions.devLoginEnabled = false
-    authOptions.geekclassEnabled = true
+    authOptions.geekclassEnabled = false
+    throw new Error('Auth options unavailable')
   }
 }
 
@@ -802,6 +762,9 @@ function geekclassLogin() {
 
 async function logout() {
   await api.post('/auth/logout')
+  sessionEpoch += 1
+  lastResult.value = null
+  dataError.value = ''
   me.value = null
   selectedBattleId.value = null
   studentJoinedBattleId.value = null
@@ -846,16 +809,19 @@ async function loadMe() {
   try {
     const { data } = await api.get('/me')
     me.value = data
-  } catch {
+  } catch (error) {
     me.value = null
+    if (error?.response?.status !== 401) throw error
   }
 }
 
 async function loadBattles() {
   const { data } = await api.get('/battles')
   battles.value = data
-  if (showTeacherConsole.value && !selectedBattleId.value && battles.value.length) {
-    selectedBattleId.value = battles.value[0].id
+  if (showTeacherConsole.value) {
+    const routeId = route.params.battleId ? String(route.params.battleId) : null
+    if (routeId) selectedBattleId.value = routeId
+    else if (!selectedBattleId.value && battles.value.length) selectedBattleId.value = battles.value[0].id
   }
 }
 
@@ -941,19 +907,29 @@ async function removePackageFromBattle(packageId) {
   await loadBattleContext()
 }
 
-async function joinQueue() {
-  if (!selectedBattleId.value) return
-  const { data } = await api.post(`/battles/${selectedBattleId.value}/queue/join`)
-  if (data.created_rooms?.length) notify(`Найдено комнат: ${data.created_rooms.length}`, 'success')
+async function onInviteJoined() {
+  await router.push(isTeacher.value ? '/play' : '/')
   await syncData()
 }
 
-async function joinBattle(battleId) {
-  selectedBattleId.value = battleId
-  await joinQueue()
-  studentJoinedBattleId.value = battleId
-  await Promise.all([loadQueue(), loadLeaderboard(battleId)])
-  subscribeSocket()
+async function resumeBattle(battleId) {
+  try {
+    if (myRoom.battle_id !== battleId || !myRoom.room_id) {
+      await api.post(`/battles/${battleId}/queue/join`)
+    }
+    await router.push(isTeacher.value ? '/play' : '/')
+    await syncData()
+  } catch (error) {
+    notify(error?.response?.data?.error?.message || 'Не удалось вернуться в батл', 'warning')
+  }
+}
+
+function onInviteSaved(code) {
+  if (selectedBattle.value) selectedBattle.value.invite_code = code
+}
+
+function openStudentReport({ studentId, taskId }) {
+  router.push({ path: `/battles/${selectedBattleId.value}/students/${studentId}`, query: taskId ? { task: taskId } : {} })
 }
 
 async function readyQueue() {
@@ -1076,7 +1052,10 @@ async function loadBattleTasks() {
 
 async function loadCurrentRoom() {
   if (!myRoom.room_id) return
-  const roomRes = await api.get(`/rooms/${myRoom.room_id}`)
+  const roomId = myRoom.room_id
+  const epoch = sessionEpoch
+  const roomRes = await api.get(`/rooms/${roomId}`)
+  if (epoch !== sessionEpoch || myRoom.room_id !== roomId) return
   roomData.status = roomRes.data.status
   roomData.participants = roomRes.data.participants || []
   roomData.task = roomRes.data.task || null
@@ -1088,74 +1067,21 @@ async function loadCurrentRoom() {
   subscribeSocket()
 }
 
-async function detectStudentActiveRoom() {
-  if (!me.value || !showPlayerUi.value) return false
-  for (const battle of battles.value) {
-    const { data } = await api.get(`/battles/${battle.id}/my-room`)
-    if (data.room_id) {
-      myRoom.room_id = data.room_id
-      myRoom.match_id = data.match_id
-      myRoom.battle_id = battle.id
-      selectedBattleId.value = battle.id
-      studentJoinedBattleId.value = battle.id
-      await loadCurrentRoom()
-      return true
-    }
-  }
-  myRoom.room_id = null
-  myRoom.match_id = null
-  myRoom.battle_id = null
-  roomData.status = null
-  roomData.participants = []
-  roomData.task = null
-  roomData.grace = null
-  roomData.round = null
-  roomData.mySubmission = null
-  opponentActivity.value = null
-  clearGraceRefreshTimer()
-  return false
-}
-
-async function detectStudentJoinedBattle() {
-  if (!me.value || !showPlayerUi.value) return false
-
-  const candidateBattleIds = []
-  if (studentJoinedBattleId.value) {
-    candidateBattleIds.push(studentJoinedBattleId.value)
-  }
-  candidateBattleIds.push(...battles.value.map((b) => b.id).filter((id) => id !== studentJoinedBattleId.value))
-
-  for (const battleId of candidateBattleIds) {
-    const data = await loadQueue(battleId)
-    const joined = (data?.entries || []).some((e) => e.user_id === me.value.id)
-    if (joined) {
-      selectedBattleId.value = battleId
-      studentJoinedBattleId.value = battleId
-      await loadLeaderboard(battleId).catch(() => {})
-      return true
-    }
-  }
-
-  studentJoinedBattleId.value = null
-  selectedBattleId.value = null
-  queue.entries = []
-  queue.meta = null
-  return false
-}
-
 async function submitCode() {
   if (!myRoom.room_id) return
-  if (isSubmissionChecking.value) return
+  if (isSubmissionChecking.value || isSubmitting.value) return
+  isSubmitting.value = true
+  isSubmissionChecking.value = true
   try {
     await api.post(`/rooms/${myRoom.room_id}/submit`, submitForm)
-    isSubmissionChecking.value = true
+    await syncData()
     notify('Решение отправлено на проверку', 'success')
   } catch (error) {
     const isPendingConflict = error?.response?.status === 409
       && error?.response?.data?.error?.message === 'Previous submission is still being checked'
     isSubmissionChecking.value = isPendingConflict ? true : false
     notify(isPendingConflict ? 'Предыдущее решение ещё проверяется' : 'Не удалось отправить решение', isPendingConflict ? 'warning' : 'error')
-  }
+  } finally { isSubmitting.value = false }
 }
 
 async function surrenderRound() {
@@ -1173,25 +1099,72 @@ async function surrenderRound() {
 
 async function loadBattleContext() {
   if (!selectedBattleId.value) return
-  const jobs = [loadQueue(), loadLeaderboard(), loadBattleTasks(), loadBattlePackages()]
+  const jobs = [loadQueue(), loadLeaderboard()]
+  if (isTeacher.value) jobs.push(loadBattleTasks(), loadBattlePackages())
   if (showTeacherConsole.value) jobs.push(loadBattleLogs())
   if (showTeacherConsole.value && isBattleRoomLogPage.value) jobs.push(loadSelectedBattleRoomLog())
   await Promise.all(jobs)
 }
 
-async function syncData() {
+async function syncSnapshot() {
+  const previousBattleId = studentJoinedBattleId.value
+  const epoch = sessionEpoch
   await loadBattles()
-
+  if (epoch !== sessionEpoch || !me.value) return
   if (showTeacherConsole.value) {
     await loadTaskPackages()
+    if (route.params.packageId && selectedTaskPackageId.value !== String(route.params.packageId)) {
+      await selectTaskPackage(String(route.params.packageId))
+    }
+    if (route.params.taskId && selectedPackageTaskId.value !== String(route.params.taskId)) {
+      const task = selectedTaskPackage.value?.tasks?.find(t => t.id === String(route.params.taskId))
+      if (task) selectPackageTask(task)
+    }
     if ((isBattleDetailsPage.value || isBattleRoomLogPage.value) && selectedBattleId.value) await loadBattleContext()
     return
   }
-
-  const hasActiveRoom = await detectStudentActiveRoom()
-  if (!hasActiveRoom) {
-    await detectStudentJoinedBattle()
+  const { data } = await api.get('/me/state')
+  if (epoch !== sessionEpoch || !me.value) return
+  me.value = data.me
+  streak.value = Number(data.me.win_streak || 0)
+  lastResult.value = data.last_result
+  selectedBattleId.value = data.battle_id
+  studentJoinedBattleId.value = data.battle_id
+  myRoom.room_id = data.room_id
+  myRoom.match_id = data.match_id
+  myRoom.battle_id = data.battle_id
+  if (data.room_id) await loadCurrentRoom()
+  else {
+    roomData.task = null
+    roomData.mySubmission = null
+    isSubmissionChecking.value = false
+    clearGraceRefreshTimer()
+    if (data.battle_id) await Promise.all([loadQueue(), loadLeaderboard()])
+    else { queue.entries = []; queue.meta = null; leaderboard.participants = [] }
   }
+  subscribeSocket()
+  if (previousBattleId && !data.battle_id && data.result_battle_id === previousBattleId && !isPersonalResults.value) {
+    await router.push(`/results/${previousBattleId}`)
+  }
+}
+
+function syncData() {
+  const epoch = sessionEpoch
+  if (syncPromise) { syncAgain = true; return syncPromise }
+  syncPromise = (async () => {
+    do {
+      syncAgain = false
+      await syncSnapshot()
+      reportVersion.value += 1
+      dataError.value = ''
+    } while (syncAgain && me.value)
+  })().catch((error) => {
+    if (epoch !== sessionEpoch) return
+    dataError.value = error?.response?.status === 401 ? 'Сессия завершена. Войдите снова.' : 'Не удалось обновить данные. Повторяем подключение…'
+    if (error?.response?.status === 401) { me.value = null; socket?.disconnect() }
+    throw error
+  }).finally(() => { syncPromise = null })
+  return syncPromise
 }
 
 function openTaskActionPanel(panel) {
@@ -1301,6 +1274,7 @@ async function createTaskInSelectedPackage() {
   let tests
   try {
     tests = JSON.parse(packageTaskForm.tests_json || '[]')
+    if (!Array.isArray(tests) || tests.some(t => !t || typeof t !== 'object' || !('input' in t) || !('expected' in t))) throw new Error('Invalid tests')
   } catch {
     notify('Некорректный JSON тестов', 'error')
     return
@@ -1337,6 +1311,7 @@ async function saveSelectedPackageTask() {
   let tests
   try {
     tests = JSON.parse(packageTaskForm.tests_json || '[]')
+    if (!Array.isArray(tests) || tests.some(t => !t || typeof t !== 'object' || !('input' in t) || !('expected' in t))) throw new Error('Invalid tests')
   } catch {
     notify('Некорректный JSON тестов', 'error')
     return
@@ -1346,7 +1321,7 @@ async function saveSelectedPackageTask() {
     statement_md: packageTaskForm.statement_md,
     difficulty: packageTaskForm.difficulty,
     check_type: packageTaskForm.check_type,
-    config: { tests }
+    config: { ...selectedPackageTask.value?.config, tests }
   })
   notify('Задача обновлена', 'success')
   await selectTaskPackage(selectedTaskPackageId.value, { resetTaskSelection: false })
@@ -1364,6 +1339,10 @@ async function removeSelectedPackageTask() {
 
 onMounted(async () => {
   bindUnloadHandlers()
+  document.addEventListener('visibilitychange', refreshOnFocus)
+  window.addEventListener('online', refreshOnFocus)
+  window.addEventListener('gcb-ui-error', reportUiError)
+  refreshTimer = setInterval(() => { if (me.value && document.visibilityState === 'visible') syncData().catch(() => {}) }, 10000)
   try {
     await loadAuthOptions()
     await loadMe()
@@ -1377,11 +1356,18 @@ onMounted(async () => {
       return
     }
 
+    if (route.query.auth_error) {
+      dataError.value = 'Не удалось войти через GeekClass. Повторите вход.'
+      return
+    }
     if (authOptions.geekclassEnabled) {
       geekclassLogin()
       return
     }
 
+  } catch {
+    authResolved.value = true
+    dataError.value = 'Не удалось загрузить приложение. Проверьте соединение и повторите.'
   } finally {
     initialSyncDone.value = true
   }
@@ -1405,7 +1391,7 @@ watch(
       return
     }
 
-    if (route.name === 'battle-details') {
+    if (route.name === 'battle-details' || isStudentReportPage.value) {
       const routeBattleId = route.params.battleId ? String(route.params.battleId) : null
       if (!routeBattleId) {
         router.push('/battles')
@@ -1478,652 +1464,15 @@ watch(
 )
 
 onUnmounted(() => {
+  clearInterval(refreshTimer)
+  clearTimeout(eventSyncTimer)
+  document.removeEventListener('visibilitychange', refreshOnFocus)
+  window.removeEventListener('online', refreshOnFocus)
+  window.removeEventListener('gcb-ui-error', reportUiError)
   clearGraceRefreshTimer()
   unbindUnloadHandlers()
   if (socket) socket.disconnect()
 })
 </script>
 
-<style>
-@import url('https://fonts.googleapis.com/css2?family=Manrope:wght@500;600;700&family=JetBrains+Mono:wght@400;600&display=swap');
-
-:root {
-  --app-bg: #f4f7ff;
-  --app-bg-soft: #eaf0ff;
-  --app-ink: #15213b;
-  --app-muted: #5f6d89;
-  --app-border: #d8deee;
-  --app-card: #ffffff;
-  --app-brand: #2b5fff;
-  --app-brand-strong: #1f4ae0;
-  --app-accent: #0ea5a4;
-}
-
-body {
-  font-family: 'Manrope', 'Segoe UI', sans-serif;
-  color: var(--app-ink);
-  background: var(--app-bg);
-}
-
-a {
-  color: inherit;
-}
-
-.app-shell {
-  position: relative;
-  min-height: 100vh;
-  background:
-    radial-gradient(circle at 12% -5%, #dbe6ff 0%, rgba(219, 230, 255, 0) 45%),
-    radial-gradient(circle at 88% 0%, #d8f4f4 0%, rgba(216, 244, 244, 0) 34%),
-    linear-gradient(160deg, var(--app-bg) 0%, var(--app-bg-soft) 100%);
-}
-
-.app-topbar {
-  background: rgba(255, 255, 255, 0.8);
-  backdrop-filter: blur(8px);
-  border-bottom: 1px solid rgba(216, 222, 238, 0.8);
-  box-shadow: 0 10px 30px rgba(32, 51, 92, 0.08);
-}
-
-.app-brand {
-  letter-spacing: 0.02em;
-  color: #13264f;
-}
-
-.brand-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  background: linear-gradient(135deg, #2b5fff 0%, #0ea5a4 100%);
-  box-shadow: 0 0 0 4px rgba(43, 95, 255, 0.12);
-}
-
-.container.py-4 {
-  position: relative;
-  z-index: 1;
-  max-width: 1120px;
-}
-
-.card {
-  border: 1px solid var(--app-border) !important;
-  border-radius: 16px;
-  background: linear-gradient(180deg, #ffffff 0%, #fdfefe 100%);
-  box-shadow: 0 12px 30px rgba(31, 58, 120, 0.08) !important;
-  animation: card-enter 220ms ease-out;
-}
-
-.card .card-body {
-  padding: 1.2rem;
-}
-
-.form-control,
-.form-select {
-  border: 1px solid var(--app-border);
-  background: #fdfefe;
-}
-
-.form-control:focus,
-.form-select:focus {
-  border-color: #93b1ff;
-  box-shadow: 0 0 0 0.2rem rgba(43, 95, 255, 0.14);
-}
-
-.btn {
-  border-radius: 10px;
-  font-weight: 600;
-  min-height: 40px;
-  transition: transform 140ms ease, box-shadow 140ms ease, background-color 140ms ease, color 140ms ease;
-}
-
-.btn:hover {
-  transform: translateY(-1px);
-}
-
-.btn-primary {
-  background: linear-gradient(135deg, var(--app-brand) 0%, var(--app-brand-strong) 100%);
-  border-color: transparent;
-  box-shadow: 0 8px 18px rgba(43, 95, 255, 0.2);
-}
-
-.btn-primary:hover,
-.btn-primary:focus {
-  background: linear-gradient(135deg, var(--app-brand-strong) 0%, #173dbd 100%);
-}
-
-.btn-outline-primary {
-  color: var(--app-brand);
-  border-color: rgba(43, 95, 255, 0.45);
-}
-
-.btn-outline-primary:hover {
-  background: rgba(43, 95, 255, 0.08);
-  color: var(--app-brand-strong);
-}
-
-.btn-outline-secondary {
-  color: #3f4d69;
-  border-color: rgba(95, 109, 137, 0.4);
-}
-
-.btn-outline-warning {
-  color: #9a6200;
-  border-color: rgba(229, 160, 0, 0.45);
-}
-
-.btn-outline-warning:hover {
-  background: rgba(229, 160, 0, 0.12);
-  color: #7a4d00;
-}
-
-.text-muted {
-  color: var(--app-muted) !important;
-}
-
-.form-control,
-.form-select {
-  min-height: 42px;
-}
-
-button:focus-visible,
-.btn:focus-visible,
-.form-control:focus-visible,
-.form-select:focus-visible,
-a:focus-visible {
-  outline: 2px solid rgba(14, 165, 164, 0.9);
-  outline-offset: 2px;
-}
-
-.elevated-panel {
-  background: linear-gradient(180deg, #f9fbff 0%, #f4f8ff 100%);
-  border: 1px solid #d7e2f6;
-  border-radius: 12px;
-  padding: 1rem;
-}
-
-.list-group-item {
-  border-color: #e2e8f5;
-  transition: background-color 140ms ease, border-color 140ms ease;
-}
-
-.list-group-item:hover {
-  background: #f4f8ff;
-  border-color: #cfd9ef;
-}
-
-.list-group-item.active {
-  background: rgba(43, 95, 255, 0.9);
-  border-color: rgba(43, 95, 255, 0.9);
-}
-
-.app-list-item {
-  border-radius: 10px;
-}
-
-.status-chip {
-  display: inline-flex;
-  align-items: center;
-  border-radius: 999px;
-  padding: 0.2rem 0.55rem;
-  font-size: 0.72rem;
-  font-weight: 700;
-  letter-spacing: 0.01em;
-  border: 1px solid transparent;
-}
-
-.presence-indicator {
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  min-width: 10px;
-}
-
-.presence-dot {
-  width: 10px;
-  height: 10px;
-  border-radius: 999px;
-  display: inline-block;
-  box-shadow: 0 0 0 2px rgba(255, 255, 255, 0.85), 0 0 0 1px rgba(117, 132, 163, 0.32);
-}
-
-.presence-dot.online {
-  background: #16a34a;
-}
-
-.presence-dot.offline {
-  background: #dc2626;
-}
-
-.status-draft {
-  background: #edf1f8;
-  color: #5b6780;
-  border-color: #d6dfef;
-}
-
-.status-lobby_open {
-  background: #e7f6ff;
-  color: #1562a2;
-  border-color: #cde9fa;
-}
-
-.status-running {
-  background: #e8f9ef;
-  color: #1d7d3f;
-  border-color: #caeed7;
-}
-
-.status-stopped {
-  background: #fff6e9;
-  color: #9c6206;
-  border-color: #f8e2bd;
-}
-
-.status-finished {
-  background: #f1ecff;
-  color: #5f45ad;
-  border-color: #dfd5f8;
-}
-
-.difficulty-easy {
-  background: #e7f8ee;
-  color: #1f7a40;
-  border-color: #c7e9d4;
-}
-
-.difficulty-medium {
-  background: #fff8e8;
-  color: #8c6100;
-  border-color: #f1dfb6;
-}
-
-.difficulty-hard {
-  background: #ffeef0;
-  color: #a12938;
-  border-color: #f8d0d5;
-}
-
-.action-ribbon {
-  padding: 0.6rem;
-  border-radius: 12px;
-  background: #f7faff;
-  border: 1px solid #dbe4f8;
-}
-
-.action-btn {
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  min-height: 38px;
-}
-
-.action-btn-sm {
-  min-height: 32px;
-  font-size: 0.84rem;
-}
-
-.soft-panel {
-  border: 1px solid #dbe4f8;
-  border-radius: 12px;
-  background: linear-gradient(180deg, #fbfdff 0%, #f7faff 100%);
-  padding: 0.9rem;
-}
-
-.participant-tile {
-  border: 1px solid #d8e1f2;
-  border-radius: 10px;
-  padding: 0.55rem 0.65rem;
-  background: #fbfdff;
-}
-
-.empty-state {
-  padding: 1rem;
-  border-radius: 12px;
-  border: 1px dashed #cbd7ef;
-  background: #f8fbff;
-  color: var(--app-muted);
-  font-size: 0.92rem;
-}
-
-.editor-textarea {
-  min-height: 120px;
-}
-
-.code-like {
-  font-family: 'JetBrains Mono', monospace;
-  font-size: 0.88rem;
-}
-
-.table {
-  --bs-table-bg: #fbfdff;
-}
-
-.table th {
-  color: #1b325d;
-  font-weight: 700;
-}
-
-.table td,
-.table th {
-  vertical-align: middle;
-}
-
-.table pre {
-  white-space: pre-wrap;
-  word-break: break-word;
-}
-
-.table-light {
-  --bs-table-bg: #edf4ff;
-}
-
-.badge.text-bg-primary {
-  background-color: var(--app-accent) !important;
-}
-
-.battle-list {
-  max-height: 60vh;
-  overflow: auto;
-  scrollbar-width: thin;
-  scrollbar-color: #b8c7e8 transparent;
-}
-
-.task-pre {
-  background: #0f172a;
-  color: #e6eef9;
-  font-family: 'JetBrains Mono', monospace;
-  border-radius: 12px;
-  padding: 12px;
-  white-space: pre-wrap;
-  margin: 0;
-  box-shadow: inset 0 0 0 1px rgba(203, 213, 225, 0.15);
-}
-
-.code-editor {
-  border: 1px solid #cfd8eb;
-  border-radius: 12px;
-  overflow: hidden;
-  box-shadow: 0 8px 18px rgba(27, 39, 72, 0.1);
-}
-
-.icon-btn {
-  min-width: 38px;
-  min-height: 38px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  font-weight: 700;
-}
-
-.toast-msg {
-  position: fixed;
-  right: 16px;
-  bottom: 16px;
-  display: inline-flex;
-  align-items: center;
-  gap: 0.45rem;
-  color: #fff;
-  padding: 11px 15px;
-  border-radius: 12px;
-  border: 1px solid transparent;
-  box-shadow: 0 12px 28px rgba(0, 0, 0, 0.24);
-  z-index: 1000;
-  animation: toast-in 230ms ease-out;
-}
-
-.toast-icon {
-  width: 20px;
-  height: 20px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  border-radius: 999px;
-  background: rgba(255, 255, 255, 0.24);
-  font-weight: 800;
-}
-
-.toast-info {
-  background: linear-gradient(135deg, #1f2a44 0%, #111827 100%);
-}
-
-.toast-success {
-  background: linear-gradient(135deg, #0e9f6e 0%, #047857 100%);
-}
-
-.toast-warning {
-  background: linear-gradient(135deg, #d97706 0%, #b45309 100%);
-}
-
-.toast-error {
-  background: linear-gradient(135deg, #dc2626 0%, #991b1b 100%);
-}
-
-.toast-bonus {
-  background: linear-gradient(135deg, #ff6a00 0%, #ff2d95 48%, #6f45ff 100%);
-  border-color: rgba(255, 255, 255, 0.35);
-  animation: toast-in 230ms ease-out, bonus-pulse 560ms ease-out 1;
-}
-
-.bonus-banner {
-  position: fixed;
-  left: 50%;
-  top: 78px;
-  transform: translateX(-50%);
-  z-index: 1150;
-  padding: 0.5rem 1rem;
-  border-radius: 999px;
-  color: #fff;
-  font-weight: 800;
-  font-size: 0.9rem;
-  letter-spacing: 0.04em;
-  text-transform: uppercase;
-  background: linear-gradient(135deg, #ff7a18 0%, #ff2d95 55%, #6f45ff 100%);
-  box-shadow: 0 14px 30px rgba(111, 69, 255, 0.3);
-  animation: banner-pop 360ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.burst-layer {
-  position: fixed;
-  inset: 0;
-  pointer-events: none;
-  z-index: 1100;
-  overflow: hidden;
-}
-
-.burst-dot {
-  position: absolute;
-  width: var(--sz);
-  height: var(--sz);
-  border-radius: 2px;
-  background: hsl(var(--h), 94%, 58%);
-  transform: translate(0, 0) rotate(0deg);
-  opacity: 0.96;
-  box-shadow: 0 0 10px hsla(var(--h), 96%, 56%, 0.55);
-  animation: burst-flight 940ms cubic-bezier(0.16, 0.84, 0.28, 1) forwards;
-}
-
-.sound-toggle {
-  position: fixed;
-  left: 16px;
-  bottom: 16px;
-  z-index: 1060;
-  width: 42px;
-  height: 42px;
-  border-radius: 999px;
-  display: inline-flex;
-  align-items: center;
-  justify-content: center;
-  box-shadow: 0 10px 24px rgba(20, 37, 74, 0.22);
-}
-
-.streak-chip {
-  position: fixed;
-  right: 16px;
-  top: 78px;
-  z-index: 1080;
-  padding: 0.42rem 0.72rem;
-  border-radius: 999px;
-  color: #fff;
-  font-weight: 800;
-  background: linear-gradient(135deg, #ff7a18 0%, #ff2d95 60%, #6f45ff 100%);
-  box-shadow: 0 12px 24px rgba(255, 45, 149, 0.25);
-  animation: banner-pop 320ms ease-out;
-}
-
-.round-overlay {
-  position: fixed;
-  inset: 0;
-  z-index: 1120;
-  display: flex;
-  align-items: center;
-  justify-content: center;
-  pointer-events: none;
-  padding: 1rem;
-  background: rgba(14, 21, 38, 0.38);
-  backdrop-filter: blur(2px);
-}
-
-.round-overlay-card {
-  width: min(460px, 100%);
-  border-radius: 18px;
-  padding: 1.2rem 1.3rem;
-  color: #fff;
-  background: linear-gradient(135deg, #ff7a18 0%, #ff2d95 52%, #6f45ff 100%);
-  border: 1px solid rgba(255, 255, 255, 0.36);
-  box-shadow: 0 22px 42px rgba(18, 18, 36, 0.35);
-  animation: overlay-pop 280ms cubic-bezier(0.22, 1, 0.36, 1);
-}
-
-.round-overlay-card .text-muted {
-  color: rgba(255, 255, 255, 0.82) !important;
-}
-
-.bonus-score {
-  font-size: 1.28rem;
-  font-weight: 900;
-}
-
-@keyframes card-enter {
-  from {
-    opacity: 0;
-    transform: translateY(4px);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0);
-  }
-}
-
-@keyframes toast-in {
-  from {
-    opacity: 0;
-    transform: translateY(8px) scale(0.96);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@keyframes bonus-pulse {
-  0% {
-    filter: saturate(1.1);
-  }
-  65% {
-    filter: saturate(1.55);
-  }
-  100% {
-    filter: saturate(1);
-  }
-}
-
-@keyframes banner-pop {
-  from {
-    opacity: 0;
-    transform: translateX(-50%) translateY(-10px) scale(0.92);
-  }
-  to {
-    opacity: 1;
-    transform: translateX(-50%) translateY(0) scale(1);
-  }
-}
-
-@keyframes burst-flight {
-  0% {
-    opacity: 0.96;
-    transform: translate(0, 0) rotate(0deg) scale(1);
-  }
-  100% {
-    opacity: 0;
-    transform: translate(var(--dx), var(--dy)) rotate(var(--dr)) scale(0.35);
-  }
-}
-
-@keyframes overlay-pop {
-  from {
-    opacity: 0;
-    transform: translateY(10px) scale(0.95);
-  }
-  to {
-    opacity: 1;
-    transform: translateY(0) scale(1);
-  }
-}
-
-@media (max-width: 768px) {
-  .container.py-4 {
-    padding-left: 0.75rem;
-    padding-right: 0.75rem;
-  }
-
-  .card .card-body {
-    padding: 1rem;
-  }
-
-  .action-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .btn-group > .btn {
-    padding-left: 0.6rem;
-    padding-right: 0.6rem;
-  }
-
-  .app-brand {
-    font-size: 1rem;
-  }
-
-  .task-pre {
-    font-size: 0.86rem;
-  }
-
-  .table {
-    font-size: 0.88rem;
-  }
-
-  .bonus-banner {
-    top: 70px;
-    font-size: 0.8rem;
-  }
-
-  .streak-chip {
-    top: 64px;
-    font-size: 0.8rem;
-  }
-
-  .sound-toggle {
-    width: 40px;
-    height: 40px;
-    left: 12px;
-    bottom: 12px;
-  }
-}
-
-@media (prefers-reduced-motion: reduce) {
-  *,
-  *::before,
-  *::after {
-    animation: none !important;
-    transition: none !important;
-  }
-}
-</style>
+<style src="./styles/theme.css"></style>

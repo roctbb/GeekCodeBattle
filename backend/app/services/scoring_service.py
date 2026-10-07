@@ -3,12 +3,19 @@ from __future__ import annotations
 from datetime import datetime, timezone, timedelta
 from math import pow
 from flask import current_app
+from sqlalchemy import text
 
 from ..extensions import db
 from ..models import Match, MatchParticipant, Room, User, ScoreEvent, RatingHistory, QueueEntry
 
 K_FACTOR = 24
 INSTANT_WIN_REASON = "match_instant_win"
+
+
+def lock_scoring():
+    """Serialize score ledger writes, including corrections, across worker processes."""
+    if db.session.get_bind().dialect.name == "postgresql":
+        db.session.execute(text("SELECT pg_advisory_xact_lock(76432101)"))
 
 
 RESULT_ORDER = {
@@ -193,6 +200,7 @@ def try_finalize_after_submission(match: Match):
 
 
 def award_instant_winner_points(match: Match, student_id) -> int:
+    lock_scoring()
     if match is None or student_id is None:
         return 0
 
@@ -254,7 +262,8 @@ def award_instant_winner_points(match: Match, student_id) -> int:
     return points_delta
 
 
-def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
+def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) -> Match:
+    lock_scoring()
     locked_match = (
         db.session.query(Match)
         .filter(Match.id == match.id)
@@ -275,7 +284,11 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
     if not participants:
         locked_match.finished_by = finished_by
         locked_match.finished_at = datetime.now(timezone.utc)
-        db.session.commit()
+        room = db.session.get(Room, locked_match.room_id)
+        if room:
+            room.status = "finished"
+            room.finished_at = locked_match.finished_at
+        db.session.commit() if commit else db.session.flush()
         return locked_match
 
     # Idempotency guard for legacy/inconsistent states:
@@ -327,7 +340,7 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
             locked_match.id,
             finished_by,
         )
-        db.session.commit()
+        db.session.commit() if commit else db.session.flush()
         return locked_match
 
     _resolve_results(participants, finished_by)
@@ -434,5 +447,5 @@ def finalize_match(match: Match, finished_by: str = "accepted") -> Match:
                 else:
                     existing.is_ready = False
 
-    db.session.commit()
+    db.session.commit() if commit else db.session.flush()
     return locked_match

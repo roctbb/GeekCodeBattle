@@ -1,4 +1,5 @@
 from ..extensions import socketio
+from ..utils import as_uuid
 
 
 def emit_queue_updated(battle_id, payload=None):
@@ -6,7 +7,9 @@ def emit_queue_updated(battle_id, payload=None):
 
 
 def emit_battle_status_changed(battle_id, status):
-    socketio.emit('battle_status_changed', {'battle_id': str(battle_id), 'status': status}, room=f'battle:{battle_id}')
+    from ..models import BattleMember
+    rooms = ['staff', f'battle:{battle_id}'] + [f'user:{m.user_id}' for m in BattleMember.query.filter_by(battle_id=as_uuid(battle_id)).all()]
+    socketio.emit('battle_status_changed', {'battle_id': str(battle_id), 'status': status}, to=rooms)
 
 
 def emit_match_found(room_info):
@@ -28,9 +31,10 @@ def emit_submission_queued(match_id, student_id, battle_id=None):
         'match_id': str(match_id),
         'student_id': str(student_id),
     }
-    socketio.emit('submission_queued', payload, room=f'match:{match_id}')
+    rooms = [f'match:{match_id}']
     if battle_id:
-        socketio.emit('submission_queued', payload, room=f'battle:{battle_id}')
+        rooms.append(f'staff:battle:{battle_id}')
+    socketio.emit('submission_queued', payload, to=rooms)
 
 
 def emit_submission_verdict(match_id, student_id, verdict, progress, battle_id=None, visible_tests_passed=None, visible_tests_total=None):
@@ -42,9 +46,10 @@ def emit_submission_verdict(match_id, student_id, verdict, progress, battle_id=N
         'visible_tests_passed': visible_tests_passed,
         'visible_tests_total': visible_tests_total,
     }
-    socketio.emit('submission_verdict', payload, room=f'match:{match_id}')
+    rooms = [f'match:{match_id}']
     if battle_id:
-        socketio.emit('submission_verdict', payload, room=f'battle:{battle_id}')
+        rooms.append(f'staff:battle:{battle_id}')
+    socketio.emit('submission_verdict', payload, to=rooms)
 
 
 def emit_round_finished(match_id, finished_by):
