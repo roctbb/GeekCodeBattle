@@ -1,16 +1,17 @@
 <template>
-  <section class="card shadow-sm border-0" v-if="selectedTaskPackage">
+  <section class="card" v-if="selectedTaskPackage">
     <div class="card-body">
-      <div class="d-flex flex-wrap justify-content-between align-items-center gap-2 mb-3">
+      <div class="catalog-heading">
         <div>
-          <h2 class="h5 mb-1">{{ selectedTaskPackage.package.name }}</h2>
-          <p class="text-muted mb-0">{{ selectedTaskPackage.package.description || 'Без описания' }}</p>
+          <p class="hero-eyebrow">Пакет задач</p>
+          <h2 class="page-title">{{ selectedTaskPackage.package.name }}</h2>
+          <p v-if="selectedTaskPackage.package.description" class="text-muted small mb-0">{{ selectedTaskPackage.package.description }}</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-outline-secondary" @click="$emit('back')">К списку</button>
-          <button class="btn btn-primary" title="Добавить задачу" @click="$emit('open-panel', 'create_task_in_package')"><i class="bi bi-plus-lg me-1" aria-hidden="true"></i>Новая задача</button>
-          <button class="btn btn-outline-primary" title="Экспорт" @click="$emit('export')"><i class="bi bi-download me-1" aria-hidden="true"></i>Экспорт</button>
-          <button class="btn btn-outline-danger" title="Удалить пакет" @click="$emit('delete-package')"><i class="bi bi-trash-fill me-1" aria-hidden="true"></i>Удалить пакет</button>
+          <button class="btn btn-outline-secondary" @click="$emit('back')"><AppIcon name="arrow-left" />К списку</button>
+          <button class="btn btn-primary" title="Добавить задачу" @click="$emit('open-panel', 'create_task_in_package')"><AppIcon name="plus" />Новая задача</button>
+          <button class="btn btn-outline-primary" title="Экспорт" @click="$emit('export')"><AppIcon name="download" />Экспорт</button>
+          <button class="btn btn-outline-danger" title="Удалить пакет" @click="$emit('delete-package')"><AppIcon name="trash" />Удалить пакет</button>
         </div>
       </div>
 
@@ -56,21 +57,21 @@
         <h3 class="h6 mb-0">Задачи пакета</h3>
         <span class="text-muted small">{{ selectedTaskPackage.tasks.length }}</span>
       </div>
-      <div class="list-group" v-if="selectedTaskPackage.tasks.length">
+      <div class="list-group catalog-list" v-if="selectedTaskPackage.tasks.length">
         <button
-          class="list-group-item list-group-item-action d-flex justify-content-between align-items-center app-list-item"
+          class="list-group-item list-group-item-action catalog-row"
           v-for="t in selectedTaskPackage.tasks"
           :key="t.id"
           @click="$emit('open-task', t)"
         >
-          <span>
-            <strong class="d-block">{{ t.title }}</strong>
-            <small class="text-muted d-flex align-items-center gap-2">
+          <span class="catalog-row-content">
+            <strong class="catalog-row-title">{{ t.title }}</strong>
+            <small class="text-muted d-flex flex-wrap align-items-center gap-2">
               <span class="status-chip" :class="`difficulty-${t.difficulty}`">{{ difficultyLabel(t.difficulty) }}</span>
-              <span>{{ t.check_type }}</span>
+              <span>{{ t.check_type === 'tests' ? 'Проверка тестами' : 'Проверка ИИ' }}</span>
             </small>
           </span>
-          <span class="text-primary small d-flex align-items-center gap-1">Открыть <i class="bi bi-chevron-right" aria-hidden="true"></i></span>
+          <span class="catalog-row-action"><span>Открыть</span><AppIcon name="chevron-right" /></span>
         </button>
       </div>
       <div class="empty-state" v-else>
@@ -81,6 +82,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { difficultyLabel } from '../../labels'
 defineProps({
   selectedTaskPackage: { type: Object, default: null },

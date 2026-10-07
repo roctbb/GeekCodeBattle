@@ -1,26 +1,22 @@
 <template>
-  <section class="battle-detail-shell card shadow-sm border-0" v-if="selectedBattle">
+  <section class="battle-detail-shell card" v-if="selectedBattle">
     <div class="card-body">
-      <header class="battle-hero mb-4">
-        <div class="d-flex flex-wrap align-items-start justify-content-between gap-3 mb-3">
+      <header class="battle-hero">
+        <div class="battle-heading">
           <div>
-            <p class="hero-eyebrow mb-1">{{ status === 'finished' ? 'Результаты батла' : 'Управление батлом' }}</p>
-            <h2 class="h4 mb-1">{{ selectedBattle.title }}</h2>
+            <p class="hero-eyebrow">{{ status === 'finished' ? 'Результаты батла' : 'Управление батлом' }}</p>
+            <h2 class="page-title">{{ selectedBattle.title }}</h2>
             <p class="text-muted mb-0 d-flex flex-wrap align-items-center gap-2">
               <span class="status-chip" :class="`status-${selectedBattle.status}`">{{ battleStatus(selectedBattle.status) }}</span>
               <span v-if="selectedBattle.invite_code && status !== 'finished'">Инвайт: <strong class="code-like">{{ selectedBattle.invite_code }}</strong></span>
             </p>
           </div>
-          <button class="btn btn-outline-secondary action-btn" @click="$emit('back')">
-            <i class="bi bi-arrow-left" aria-hidden="true"></i>
+          <button class="btn btn-outline-secondary action-btn battle-back" @click="$emit('back')">
+            <AppIcon name="arrow-left" />
             <span>К списку</span>
           </button>
         </div>
-
-
-      </header>
-
-      <div v-if="status !== 'finished'" class="d-flex flex-wrap gap-2 mb-4 action-ribbon">
+      <div v-if="status !== 'finished'" class="d-flex flex-wrap gap-2 action-ribbon">
         <button
           v-if="showOpenLobby"
           class="btn btn-outline-primary action-btn"
@@ -28,7 +24,7 @@
           title="Открыть лобби"
           @click="$emit('open-lobby')"
         >
-          <i class="bi bi-door-open-fill" aria-hidden="true"></i>
+          <AppIcon name="door" />
           <span>Открыть лобби</span>
         </button>
         <button
@@ -38,7 +34,7 @@
           title="Запустить"
           @click="$emit('start')"
         >
-          <i class="bi bi-play-fill" aria-hidden="true"></i>
+          <AppIcon name="play" />
           <span>Запустить</span>
         </button>
         <button
@@ -47,7 +43,7 @@
           title="Остановить"
           @click="$emit('stop')"
         >
-          <i class="bi bi-pause-fill" aria-hidden="true"></i>
+          <AppIcon name="pause" />
           <span>Остановить</span>
         </button>
         <button
@@ -56,14 +52,15 @@
           title="Завершить"
           @click="$emit('finish')"
         >
-          <i class="bi bi-stop-fill" aria-hidden="true"></i>
+          <AppIcon name="stop" />
           <span>Завершить</span>
         </button>
       </div>
+      </header>
 
-      <details v-if="status !== 'finished'" class="mb-4" :open="status === 'draft' || !selectedBattle.invite_code"><summary class="mb-3">Инвайт и пакеты задач</summary>
+      <details v-if="status !== 'finished'" class="battle-settings" :open="status === 'draft' || !selectedBattle.invite_code"><summary><AppIcon name="chevron-down" />Инвайт и пакеты задач</summary>
         <BattleInviteSettings :battle-id="selectedBattle.id" :code="selectedBattle.invite_code" @saved="$emit('invite-saved', $event)" />
-        <div class="d-flex justify-content-between align-items-center mb-3">
+        <div class="package-heading">
           <h3 class="h6 mb-0">Пакеты задач</h3>
           <small class="text-muted">Отмеченные пакеты участвуют в жеребьёвке раундов</small>
         </div>
@@ -83,7 +80,7 @@
               title="Добавить пакет"
               @click="$emit('add-package', p.id)"
             >
-              <i class="bi bi-plus-lg" aria-hidden="true"></i>
+              <AppIcon name="plus" />
               <span>Добавить</span>
             </button>
             <button
@@ -92,7 +89,7 @@
               title="Убрать пакет"
               @click="$emit('remove-package', p.id)"
             >
-              <i class="bi bi-dash-lg" aria-hidden="true"></i>
+              <AppIcon name="minus" />
               <span>Убрать</span>
             </button>
             </div>
@@ -103,7 +100,7 @@
         </div>
       </details>
 
-      <div class="battle-section-tabs" role="group" aria-label="Раздел батла"><button :aria-pressed="tab === 'statistics'" @click="tab='statistics'">Статистика учеников</button><button :aria-pressed="tab === 'rooms'" @click="tab='rooms'">Лобби и комнаты</button></div>
+      <div class="battle-section-tabs" role="group" aria-label="Раздел батла"><button :aria-pressed="tab === 'statistics'" @click="tab='statistics'"><AppIcon name="chart" />Статистика учеников</button><button :aria-pressed="tab === 'rooms'" @click="tab='rooms'"><AppIcon name="users" />Лобби и комнаты</button></div>
       <TeacherBattleStatistics v-if="tab === 'statistics'" :battle-id="selectedBattle.id" :refresh-key="refreshKey" @open-student="$emit('open-student', $event)" />
       <div v-else>
       <section class="row g-3">
@@ -212,7 +209,7 @@
             </p>
 
             <button class="btn btn-sm btn-outline-primary action-btn action-btn-sm w-100" @click="$emit('open-room-log', room.room_id)">
-              <i class="bi bi-journal-text" aria-hidden="true"></i>
+              <AppIcon name="file" />
               <span>Открыть журнал комнаты</span>
             </button>
           </article>
@@ -232,6 +229,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { battleStatus } from '../../labels'
 import { computed, ref } from 'vue'
 import BattleInviteSettings from './BattleInviteSettings.vue'
@@ -341,77 +339,39 @@ function formatDate(value) {
   overflow: hidden;
 }
 
-.battle-hero {
-  padding: 1rem;
-  border-radius: 14px;
-  border: 1px solid #d8e3fb;
-  background: var(--app-card);
-}
-
-.hero-eyebrow {
-  text-transform: uppercase;
-  letter-spacing: 0.05em;
-  font-size: 0.72rem;
-  font-weight: 700;
-  color: #607191;
-}
-
-.hero-stats {
-  display: grid;
-  grid-template-columns: repeat(4, minmax(0, 1fr));
-  gap: 0.55rem;
-}
-
-.hero-stat {
-  border: 1px solid #dbe5f8;
-  border-radius: 12px;
-  background: rgba(255, 255, 255, 0.86);
-  padding: 0.65rem 0.74rem;
-  transition: transform 140ms ease, box-shadow 140ms ease;
-}
-
-.hero-stat:hover {
-  transform: translateY(-1px);
-  box-shadow: 0 10px 20px rgba(32, 58, 117, 0.08);
-}
-
-.hero-stat-label {
-  display: block;
-  font-size: 0.78rem;
-  color: #637493;
-}
-
-.hero-stat-value {
-  display: block;
-  font-size: 1.2rem;
-  font-weight: 800;
-  color: #1d3465;
-  line-height: 1.15;
-}
+.battle-hero { display: grid; gap: 1.5rem; margin-bottom: 2rem; }
+.battle-heading { display: flex; flex-wrap: wrap; align-items: flex-start; justify-content: space-between; gap: 1rem; }
+.battle-heading > div { min-width: 0; flex: 1 1 280px; }
+.battle-heading .page-title { overflow-wrap: anywhere; }
+.battle-back { flex-shrink: 0; }
+.battle-settings { margin-bottom: 2rem; }
+.battle-settings > summary { display: flex; align-items: center; gap: .75rem; padding: .75rem 0; font-weight: 600; cursor: pointer; list-style: none; }
+.battle-settings > summary::-webkit-details-marker { display: none; }
+.battle-settings > summary .app-icon { color: var(--app-muted); width: .875em; transform: rotate(-90deg); transition: transform 140ms ease; }
+.battle-settings[open] > summary { margin-bottom: 1rem; }
+.battle-settings[open] > summary .app-icon { transform: rotate(0); }
+.package-heading { display: flex; justify-content: space-between; align-items: baseline; flex-wrap: wrap; gap: .5rem 1rem; margin-bottom: 1rem; }
 
 .package-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.6rem;
+  gap: 1rem;
 }
 
 .package-card {
-  border: 1px solid #dce5f8;
+  border: 1px solid var(--app-border);
   border-radius: 12px;
   background: var(--app-card);
-  padding: 0.74rem;
+  padding: 1rem;
   display: flex;
   justify-content: space-between;
-  gap: 0.55rem;
+  gap: 1rem;
   align-items: center;
-  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  flex-wrap: wrap;
 }
 
-.package-card:hover {
-  transform: translateY(-1px);
-  border-color: #c6d8fb;
-  box-shadow: 0 10px 24px rgba(38, 62, 122, 0.09);
-}
+.package-card > div:first-child { min-width: 0; overflow-wrap: anywhere; }
+.package-card > div:last-child { flex-wrap: wrap; }
 
 .rank-pill {
   display: inline-flex;
@@ -431,14 +391,14 @@ function formatDate(value) {
 .rooms-grid {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 0.7rem;
+  gap: 1rem;
 }
 
 .room-card {
   border: 1px solid #dde6f8;
   border-radius: 12px;
   background: var(--app-card);
-  padding: 0.78rem;
+  padding: 1rem;
   box-shadow: inset 0 0 0 1px rgba(255, 255, 255, 0.7);
   transition: transform 140ms ease, box-shadow 140ms ease;
 }
@@ -486,20 +446,24 @@ function formatDate(value) {
 }
 
 @media (max-width: 992px) {
-  .hero-stats,
   .package-grid,
   .rooms-grid {
     grid-template-columns: 1fr;
   }
 
   .package-card {
-    align-items: flex-start;
-    flex-direction: column;
+    align-items: center;
   }
 
   .room-filter-wrap {
     width: 100%;
     justify-content: flex-start;
   }
+}
+@media (max-width: 575px) {
+  .battle-hero { margin-bottom: 1.5rem; }
+  .battle-back { order: -1; }
+  .battle-heading > div { flex-basis: 100%; }
+  .action-ribbon > .btn { flex: 1 1 auto; }
 }
 </style>

@@ -116,7 +116,7 @@
               :aria-label="`Удалить тест ${index + 1}`"
               @click="removeTest(index)"
             >
-              <i class="bi bi-x-lg" aria-hidden="true"></i>
+              <AppIcon name="close" />
             </button>
           </div>
           <button class="btn btn-sm btn-outline-primary mb-3" @click="addTest">
@@ -149,6 +149,7 @@
   </section>
 </template>
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { computed, ref } from 'vue'
 import MarkdownText from '../MarkdownText.vue'
 const props = defineProps({

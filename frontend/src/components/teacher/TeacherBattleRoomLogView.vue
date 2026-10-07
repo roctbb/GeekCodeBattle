@@ -10,7 +10,7 @@
           <p class="text-muted mb-0">Детальный журнал по раундам, участникам и отправкам решений.</p>
         </div>
         <button class="btn btn-outline-secondary action-btn" @click="$emit('back')">
-          <i class="bi bi-arrow-left" aria-hidden="true"></i>
+          <AppIcon name="arrow-left" />
           <span>Назад к логу сражения</span>
         </button>
       </header>
@@ -124,6 +124,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { computed } from 'vue'
 import MarkdownText from '../MarkdownText.vue'
 import TeacherRejudgeForm from './TeacherRejudgeForm.vue'

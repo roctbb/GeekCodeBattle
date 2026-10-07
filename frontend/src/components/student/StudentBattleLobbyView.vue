@@ -11,8 +11,7 @@
     <form class="card invite-card" @submit.prevent="join">
       <div class="card-body p-4">
         <span class="invite-icon" aria-hidden="true"
-          ><i class="bi bi-door-open"></i
-        ></span>
+          ><AppIcon name="door" /></span>
         <h2 class="h4 mt-3">Войти в батл</h2>
         <label class="form-label text-muted mt-2" for="battle-invite"
           >Инвайт преподавателя</label
@@ -42,12 +41,12 @@
       </div>
     </form>
     <RouterLink class="invite-results-link" to="/results"
-      ><i class="bi bi-clock-history" aria-hidden="true"></i> Мои результаты и
-      решения <i class="bi bi-arrow-right" aria-hidden="true"></i
-    ></RouterLink>
+      ><AppIcon name="history" /> Мои результаты и
+      решения <AppIcon name="arrow-right" /></RouterLink>
   </section>
 </template>
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { ref } from 'vue'
 import api from '../../api'
 const emit = defineEmits(['joined'])

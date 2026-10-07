@@ -1,31 +1,26 @@
 <template>
-  <section class="card shadow-sm border-0 mb-3 battles-hero-card">
-    <div class="card-body d-flex flex-wrap align-items-start justify-content-between gap-3">
+  <section class="card mb-4 battles-hero-card">
+    <div class="card-body battle-list-heading">
       <div>
-        <p class="hero-eyebrow mb-1">Панель баттлов</p>
-        <h2 class="h4 mb-1">Сражения</h2>
+        <p class="hero-eyebrow">Панель батлов</p>
+        <h2 class="page-title">Сражения <span class="battle-count" :aria-label="`Всего батлов: ${battles.length}`">{{ battles.length }}</span></h2>
         <p class="text-muted small mb-0">Управляйте раундами, лобби и подключёнными пакетами задач.</p>
       </div>
 
-      <div class="hero-meta ms-auto">
-        <div class="hero-count">{{ battles.length }}</div>
-        <div class="hero-count-label">всего батлов</div>
-      </div>
-
       <button class="btn btn-primary action-btn" title="Добавить сражение" aria-label="Добавить сражение" @click="$emit('toggle-create')">
-        <i class="bi bi-plus-lg" aria-hidden="true"></i>
+        <AppIcon :name="showCreateBattleForm ? 'close' : 'plus'" />
         <span>{{ showCreateBattleForm ? 'Скрыть форму' : 'Новый батл' }}</span>
       </button>
     </div>
 
     <div class="hero-stats" v-if="battles.length">
-      <span class="hero-stat-chip">Черновики: {{ draftCount }}</span>
-      <span class="hero-stat-chip">В процессе: {{ activeCount }}</span>
-      <span class="hero-stat-chip">Прошедшие: {{ finishedCount }}</span>
+      <span>Черновики <strong>{{ draftCount }}</strong></span>
+      <span>В процессе <strong>{{ activeCount }}</strong></span>
+      <span>Прошедшие <strong>{{ finishedCount }}</strong></span>
     </div>
   </section>
 
-  <section class="card shadow-sm border-0 mb-3" v-if="showCreateBattleForm">
+  <section class="card mb-4" v-if="showCreateBattleForm">
     <div class="card-body">
       <h3 class="h6 mb-3">Новое сражение</h3>
       <div class="create-panel">
@@ -57,26 +52,26 @@
     </div>
   </section>
 
-  <section class="card shadow-sm border-0">
+  <section class="card">
     <div class="card-body">
-      <div class="d-flex align-items-center justify-content-between mb-3">
+      <div class="battle-list-toolbar">
         <h3 class="h6 mb-0">Список сражений</h3>
         <div class="btn-group btn-group-sm" role="group" aria-label="Период батлов"><button class="btn" :class="filter === 'current' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='current'">Текущие</button><button class="btn" :class="filter === 'past' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='past'">Прошедшие</button><button class="btn" :class="filter === 'all' ? 'btn-primary' : 'btn-outline-primary'" @click="filter='all'">Все</button></div>
       </div>
 
       <div class="battle-grid" v-if="filteredBattles.length">
         <article class="battle-tile" v-for="b in filteredBattles" :key="b.id">
-          <div class="d-flex justify-content-between align-items-start gap-2 mb-2">
-            <div>
-              <strong class="d-block mb-1">{{ b.title }}</strong>
+          <div class="battle-tile-heading">
+            <div class="battle-tile-title">
+              <h4 class="h6 mb-2">{{ b.title }}</h4>
               <small class="status-chip" :class="`status-${b.status}`">{{ battleStatus(b.status) }}</small>
             </div>
-            <span v-if="b.invite_code" class="battle-id">{{ b.invite_code }}</span><span v-else class="small text-muted">Без инвайта</span>
+            <span v-if="b.invite_code" class="battle-id">{{ b.invite_code }}</span><span v-else class="battle-no-invite">Без инвайта</span>
           </div>
 
-          <button class="btn btn-outline-primary btn-sm w-100 action-btn action-btn-sm" @click="$emit('open-battle', b.id)">
+          <button class="btn btn-outline-primary w-100 action-btn" @click="$emit('open-battle', b.id)">
             <span>{{ ['stopped','finished'].includes(b.status) ? 'Результаты и статистика' : 'Управление и статистика' }}</span>
-            <i class="bi bi-chevron-right" aria-hidden="true"></i>
+            <AppIcon name="chevron-right" />
           </button>
         </article>
       </div>
@@ -89,6 +84,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { battleStatus } from '../../labels'
 import { computed, ref } from 'vue'
 
@@ -117,129 +113,59 @@ const finishedCount = computed(() => (props.battles || []).filter((b) => ['stopp
 </script>
 
 <style scoped>
-.battles-hero-card {
-  overflow: hidden;
-}
-
-.hero-eyebrow {
-  font-size: 0.72rem;
-  font-weight: 800;
-  letter-spacing: 0.05em;
-  text-transform: uppercase;
-  color: #4d6190;
-}
-
-.hero-meta {
-  text-align: right;
-  padding: 0.4rem 0.7rem;
-  border: 1px solid #d8e4fb;
-  border-radius: 12px;
-  background: var(--app-card);
-}
-
-.hero-count {
-  font-size: 1.25rem;
-  line-height: 1.1;
-  font-weight: 800;
-  color: #1d3465;
-}
-
-.hero-count-label {
-  font-size: 0.74rem;
-  color: #62749a;
-}
-
-.hero-stats {
-  margin: 0 1.2rem 1.1rem;
+.battle-list-heading, .battle-list-toolbar {
   display: flex;
+  align-items: center;
+  justify-content: space-between;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: 1rem;
 }
-
-.hero-stat-chip {
+.battle-list-toolbar { margin-bottom: 1.5rem; }
+.battle-count {
   display: inline-flex;
   align-items: center;
-  border-radius: 999px;
-  padding: 0.25rem 0.62rem;
-  border: 1px solid #d8e3fb;
-  background: #f3f7ff;
-  color: #2a4d97;
-  font-size: 0.76rem;
-  font-weight: 700;
+  justify-content: center;
+  min-width: 1.75rem;
+  height: 1.75rem;
+  margin-left: .5rem;
+  padding: 0 .5rem;
+  border-radius: 6px;
+  background: var(--app-bg);
+  color: var(--app-muted);
+  font-size: .875rem;
+  font-weight: 600;
+  vertical-align: middle;
 }
-
-.create-panel {
-  border: 1px solid #dbe5f8;
-  border-radius: 12px;
-  background: var(--app-card);
-  padding: 0.9rem;
-}
-
-.package-chips {
+.hero-stats {
   display: flex;
   flex-wrap: wrap;
-  gap: 0.45rem;
+  gap: .75rem 1.5rem;
+  margin: 0 var(--app-panel-padding) var(--app-panel-padding);
+  color: var(--app-muted);
+  font-size: .8125rem;
 }
-
-.package-chip {
-  border: 1px solid #d8e4fb;
-  border-radius: 999px;
-  padding: 0.4rem 0.78rem;
-  margin: 0;
-  background: #fbfdff;
-}
-
-.battle-grid {
-  display: grid;
-  gap: 0.7rem;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-}
-
+.hero-stats strong { margin-left: .375rem; color: var(--app-ink); font-variant-numeric: tabular-nums; }
+.package-chips { display: flex; flex-wrap: wrap; gap: .5rem; }
+.package-chip { border: 1px solid var(--app-border); border-radius: 8px; padding: .5rem .75rem; margin: 0; }
+.battle-grid { display: grid; gap: 1rem; grid-template-columns: repeat(2, minmax(0, 1fr)); }
 .battle-tile {
-  border: 1px solid #dbe5f9;
-  border-radius: 12px;
-  background: var(--app-card);
-  padding: 0.8rem;
-  transition: transform 140ms ease, box-shadow 140ms ease, border-color 140ms ease;
+  display: flex;
+  flex-direction: column;
+  gap: 1.5rem;
+  padding: 1.25rem;
+  border: 1px solid var(--app-border);
+  border-radius: 10px;
+  transition: border-color 140ms ease;
 }
-
-.battle-tile:hover {
-  transform: translateY(-1px);
-  border-color: #c6d8fb;
-  box-shadow: 0 10px 22px rgba(35, 60, 117, 0.1);
-}
-
-.battle-id {
-  font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
-  font-size: 0.7rem;
-  color: #687ba4;
-  border: 1px solid #d9e4fb;
-  background: #eff4ff;
-  border-radius: 999px;
-  padding: 0.12rem 0.46rem;
-}
-
-@media (max-width: 992px) {
-  .battle-grid {
-    grid-template-columns: 1fr;
-  }
-}
-
-@media (max-width: 768px) {
-  .hero-meta {
-    order: 2;
-    margin-left: 0;
-    text-align: left;
-  }
-
-  .battles-hero-card .action-btn {
-    width: 100%;
-    justify-content: center;
-  }
-
-  .hero-stats {
-    margin-left: 1rem;
-    margin-right: 1rem;
-  }
+.battle-tile:hover { border-color: #a9b8df; }
+.battle-tile-heading { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: .75rem; }
+.battle-tile-title { flex: 1; min-width: 140px; overflow-wrap: anywhere; }
+.battle-tile > .btn { margin-top: auto; justify-content: space-between; text-align: left; }
+.battle-id { font-family: ui-monospace, monospace; font-size: .75rem; color: var(--app-muted); background: var(--app-bg); border-radius: 5px; padding: .25rem .5rem; overflow-wrap: anywhere; max-width: 100%; }
+.battle-no-invite { font-size: .8125rem; color: var(--app-muted); }
+@media (max-width: 767px) {
+  .battle-grid { grid-template-columns: 1fr; }
+  .battle-list-heading > .btn { width: 100%; }
+  .battle-tile { padding: 1rem; }
 }
 </style>

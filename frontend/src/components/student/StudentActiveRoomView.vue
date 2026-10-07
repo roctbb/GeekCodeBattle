@@ -56,7 +56,7 @@
         :aria-pressed="split"
         @click="toggleLayout"
       >
-        <i class="bi bi-layout-split" aria-hidden="true"></i>
+        <AppIcon name="columns" />
         {{ split ? 'Фокус на коде' : 'Рядом с кодом' }}
       </button>
     </div>
@@ -133,7 +133,7 @@
               :disabled="isChecking || !canSubmit || !submitCode.trim()"
               @click="$emit('submit')"
             >
-              <i class="bi bi-send" aria-hidden="true"></i>
+              <AppIcon name="send" />
               {{ isChecking ? 'Проверяется…' : 'Отправить решение' }}
             </button>
           </div>
@@ -206,6 +206,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { Codemirror } from 'vue-codemirror'
 import { computed, onMounted, onUnmounted, ref } from 'vue'
 import { python } from '@codemirror/lang-python'

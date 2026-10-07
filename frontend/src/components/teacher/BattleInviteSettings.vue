@@ -27,7 +27,7 @@
           saving || !draft.trim() || draft.trim().toUpperCase() === code
         "
       >
-        Сохранить</button
+        <AppIcon name="save" />Сохранить</button
       ><button
         v-if="!disabled"
         type="button"
@@ -35,14 +35,14 @@
         :disabled="saving"
         @click="save(true)"
       >
-        Сгенерировать</button
+        <AppIcon name="refresh" />Сгенерировать</button
       ><button
         v-if="code"
         type="button"
         class="btn btn-outline-secondary"
         @click="copy"
       >
-        {{ copied ? 'Скопировано' : 'Копировать' }}
+        <AppIcon :name="copied ? 'check' : 'copy'" />{{ copied ? 'Скопировано' : 'Копировать' }}
       </button>
     </form>
     <p v-if="error" class="text-danger small mb-0" role="alert">{{ error }}</p>
@@ -50,6 +50,7 @@
   </section>
 </template>
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { ref, watch } from 'vue'
 import api from '../../api'
 const props = defineProps({ battleId: String, code: String, disabled: Boolean })

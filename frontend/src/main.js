@@ -1,9 +1,11 @@
+// Load vendor styles before component styles and the product theme.
+import 'bootstrap/dist/css/bootstrap.min.css'
+import '@fortawesome/fontawesome-svg-core/styles.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
-import 'bootstrap/dist/css/bootstrap.min.css'
-import 'bootstrap-icons/font/bootstrap-icons.css'
+import './styles/theme.css'
 const app = createApp(App)
 app.config.errorHandler = (error) => {
   console.error(error)

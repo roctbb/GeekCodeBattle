@@ -203,7 +203,7 @@
       :title="audioEnabled ? 'Выключить звуки' : 'Включить звуки'"
       @click="toggleAudio"
     >
-      <i class="bi" :class="audioEnabled ? 'bi-volume-up-fill' : 'bi-volume-mute-fill'" aria-hidden="true"></i>
+      <AppIcon :name="audioEnabled ? 'volume-on' : 'volume-off'" />
     </button>
 
     <section class="streak-chip" v-if="showPlayerUi && streak > 1" aria-live="polite">
@@ -223,6 +223,7 @@
 </template>
 
 <script setup>
+import AppIcon from './components/AppIcon.vue'
 import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import { resultLabel, verdictLabel } from './labels'
 import api from './api'
@@ -1474,5 +1475,3 @@ onUnmounted(() => {
   if (socket) socket.disconnect()
 })
 </script>
-
-<style src="./styles/theme.css"></style>

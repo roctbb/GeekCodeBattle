@@ -35,11 +35,11 @@
 
       <div class="joined-actions d-flex flex-wrap gap-2 mb-3">
         <button class="btn btn-primary" @click="$emit('ready')" :disabled="myQueueStatus === 'ready'">
-          <i class="bi bi-lightning-charge-fill" aria-hidden="true"></i>
+          <AppIcon name="bolt" />
           {{ myQueueStatus === 'ready' ? 'Вы уже готовы' : 'Готов к раунду' }}
         </button>
         <button class="btn btn-outline-secondary" @click="$emit('leave')">
-          <i class="bi bi-box-arrow-left" aria-hidden="true"></i>
+          <AppIcon name="leave" />
           Покинуть сражение
         </button>
       </div>
@@ -93,6 +93,7 @@
 </template>
 
 <script setup>
+import AppIcon from '../AppIcon.vue'
 import { battleStatus } from '../../labels'
 import { computed } from 'vue'
 
