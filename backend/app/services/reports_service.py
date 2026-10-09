@@ -7,21 +7,21 @@ from ..extensions import db
 from ..models import (Battle, BattleMember, BattleTask, Task, Match, MatchParticipant,
                       Room, Submission, User, ScoreEvent, RatingHistory)
 from ..api.serializers import battle_out
+from .test_visibility import task_tests, is_hidden, public_test, public_snapshot, has_hidden_tests, hidden_test_feedback
 
 
 def public_task(task):
-    tests = (task.config_json or {}).get('tests', []) if isinstance(task.config_json, dict) else []
+    tests = task_tests(task)
     return {'id': str(task.id), 'title': task.title, 'difficulty': task.difficulty,
             'statement_md': task.statement_md,
-            'public_tests': [{'input': str(t.get('input', '')), 'expected': str(t.get('expected', ''))}
-                             for t in tests if isinstance(t, dict)] if isinstance(tests, list) else []}
+            'public_tests': [public_test(t) for t in tests if isinstance(t, dict) and not is_hidden(t)]}
 
 
 def _iso(value):
     return value.isoformat() if value else None
 
 
-def submission_out(sub, match):
+def submission_out(sub, match, task=None):
     # Comments are shown as text. Structured checker test details can contain hidden tests.
     comment = sub.checker_comment_raw
     if comment:
@@ -32,6 +32,8 @@ def submission_out(sub, match):
             pass
         if not isinstance(comment, str):
             comment = None
+    if has_hidden_tests(task):
+        comment = hidden_test_feedback(sub)
     return {'id': str(sub.id), 'match_id': str(sub.match_id), 'created_at': _iso(sub.created_at),
             'language': sub.language, 'source_code': sub.source_code, 'verdict': sub.verdict,
             'progress': float(sub.progress_value or 0), 'comment': (comment or '')[:4000],
@@ -55,13 +57,17 @@ def battle_report(battle, *, user_id=None, detail=False):
     assigned_ids = {matches[p.match_id].task_id for p in participants}
     owned_match_ids = {p.match_id for p in participants}
     pool = Task.query.join(BattleTask).filter(BattleTask.battle_id == battle.id).order_by(Task.created_at, Task.id).all()
+    current_tasks = {t.id: t for t in pool}
+    missing_ids = {m.task_id for m in matches.values()} - current_tasks.keys()
+    if missing_ids:
+        current_tasks.update({t.id: t for t in Task.query.filter(Task.id.in_(missing_ids)).all()})
     all_tasks = {t.id: public_task(t) for t in pool}
     # Use the condition issued in the round, even if the teacher later edits/removes the task.
     for match in matches.values():
         if user_id and match.id not in owned_match_ids:
             continue
         if match.task_snapshot:
-            all_tasks[match.task_id] = match.task_snapshot
+            all_tasks[match.task_id] = public_snapshot(match.task_snapshot, current_tasks.get(match.task_id))
         elif match.task_id not in all_tasks:
             task = db.session.get(Task, match.task_id)
             if task:
@@ -95,7 +101,7 @@ def battle_report(battle, *, user_id=None, detail=False):
             if detail:
                 row.update({'statement_md': task.get('statement_md', ''), 'difficulty': task.get('difficulty'),
                             'public_tests': task.get('public_tests', []),
-                            'submissions': [submission_out(s, matches[s.match_id]) for s in ss]})
+                            'submissions': [submission_out(s, matches[s.match_id], current_tasks.get(tid)) for s in ss]})
             tasks.append(row)
         assigned = sum(t['assigned'] for t in tasks)
         solved = sum(t['state'] == 'solved' for t in tasks)

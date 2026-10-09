@@ -13,6 +13,7 @@ from ..access import can_read_room, can_read_battle
 from ..services import rooms_service, realtime_service
 from ..services.scoring_service import get_winner_info, try_finalize_after_submission
 from ..services.matchmaker_service import run_matchmaking
+from ..services.test_visibility import task_tests, is_hidden, has_hidden_tests, hidden_test_feedback
 from ..extensions import db
 
 
@@ -44,8 +45,9 @@ def _callback_base_url():
     return request.host_url.rstrip("/")
 
 
-def _extract_visible_test_results(latest_submission):
+def _extract_visible_test_results(latest_submission, tests=None):
     results = []
+    hidden = any(is_hidden(test) for test in tests or [])
 
     def _parse_status(item):
         if not isinstance(item, dict):
@@ -76,7 +78,9 @@ def _extract_visible_test_results(latest_submission):
         try:
             parsed_comment = json.loads(latest_submission.checker_comment_raw)
             raw_visible = []
+            visible_only = False
             if isinstance(parsed_comment, dict):
+                visible_only = bool(parsed_comment.get("visible_tests"))
                 raw_visible = (
                     parsed_comment.get("visible_tests")
                     or parsed_comment.get("tests")
@@ -97,11 +101,22 @@ def _extract_visible_test_results(latest_submission):
                         )
                     else:
                         results.append({"passed": None, "actual": None})
+                if hidden:
+                    indices = [i for i, test in enumerate(tests) if not is_hidden(test)] if visible_only else list(range(len(tests)))
+                    # Do not attach a hidden output to a public example if the
+                    # checker returned an incomplete or ambiguous result list.
+                    if len(results) != len(indices):
+                        return []
+                    aligned = [{} for _ in tests]
+                    for index, result in zip(indices, results):
+                        aligned[index] = result
+                    results = aligned
         except Exception:
             results = []
 
     if (
         not results
+        and not hidden
         and latest_submission
         and latest_submission.visible_tests_total is not None
         and latest_submission.visible_tests_passed is not None
@@ -214,15 +229,17 @@ def get_room(room_id):
     if match:
         latest_submission = rooms_service.get_latest_submission(match.id, session["user_id"])
 
-    visible_test_results = _extract_visible_test_results(latest_submission)
-    checker_feedback_text = _extract_checker_feedback_text(latest_submission)
+    tests = task_tests(task)
+    visible_test_results = _extract_visible_test_results(latest_submission, tests)
+    checker_feedback_text = (hidden_test_feedback(latest_submission) if has_hidden_tests(task)
+                             else _extract_checker_feedback_text(latest_submission))
 
     public_tests = []
     if task and isinstance(task.config_json, dict):
         raw_tests = task.config_json.get("tests") or []
         if isinstance(raw_tests, list):
             for idx, item in enumerate(raw_tests):
-                if not isinstance(item, dict):
+                if not isinstance(item, dict) or is_hidden(item):
                     continue
                 public_tests.append(
                     {

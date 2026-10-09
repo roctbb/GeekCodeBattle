@@ -69,7 +69,7 @@
         <div
           class="d-flex flex-wrap align-items-center justify-content-between gap-2 mb-3"
         >
-          <h2 class="h6 mb-0">Публичные тесты</h2>
+          <h2 class="h6 mb-0">Тесты</h2>
           <button class="btn btn-sm btn-outline-secondary" @click="raw = !raw">
             {{ raw ? 'Обычный редактор' : 'Редактировать JSON' }}
           </button>
@@ -91,7 +91,7 @@
           >
             <div>
               <label class="form-label" :for="`input-${index}`"
-                >Ввод {{ index + 1 }}</label
+                >Ввод {{ index + 1 }}{{ test.hidden ? ' · скрытый тест' : '' }}</label
               ><textarea
                 :id="`input-${index}`"
                 class="form-control code-like"
