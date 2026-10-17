@@ -103,18 +103,18 @@ const visible = (line) =>
   padding: 0;
 }
 .added {
-  background: #234b344d;
-  color: #c2e2ce;
+  background: var(--app-success-bg);
+  color: var(--app-success);
 }
 .removed {
-  background: #62333b4d;
-  color: #f0bdc1;
+  background: var(--app-danger-bg);
+  color: var(--app-danger);
 }
 .diff-added {
-  color: #aad7b9;
+  color: var(--app-success);
 }
 .diff-removed {
-  color: #f0bdc1;
+  color: var(--app-danger);
 }
 .unchanged {
   color: var(--app-muted);

@@ -1,17 +1,16 @@
 <template>
   <section class="card" v-if="selectedTaskPackage">
     <div class="card-body">
+      <button class="package-back" @click="$emit('back')"><AppIcon name="arrow-left" />Все пакеты</button>
       <div class="catalog-heading">
         <div>
-          <p class="hero-eyebrow">Пакет задач</p>
-          <h2 class="page-title">{{ selectedTaskPackage.package.name }}</h2>
+
+          <h1 class="page-title">{{ selectedTaskPackage.package.name }}</h1>
           <p v-if="selectedTaskPackage.package.description" class="text-muted small mb-0">{{ selectedTaskPackage.package.description }}</p>
         </div>
         <div class="d-flex flex-wrap gap-2">
-          <button class="btn btn-outline-secondary" @click="$emit('back')"><AppIcon name="arrow-left" />К списку</button>
           <button class="btn btn-primary" title="Добавить задачу" @click="$emit('open-panel', 'create_task_in_package')"><AppIcon name="plus" />Новая задача</button>
-          <button class="btn btn-outline-primary" title="Экспорт" @click="$emit('export')"><AppIcon name="download" />Экспорт</button>
-          <button class="btn btn-outline-danger" title="Удалить пакет" @click="$emit('delete-package')"><AppIcon name="trash" />Удалить пакет</button>
+          <details class="package-actions"><summary class="btn btn-outline-secondary">Ещё<AppIcon name="chevron-down" /></summary><div><button @click="$emit('export')"><AppIcon name="download" />Экспорт JSON</button><button class="text-danger" @click="$emit('delete-package')"><AppIcon name="trash" />Удалить пакет</button></div></details>
         </div>
       </div>
 
@@ -19,31 +18,31 @@
         <h3 class="h6 mb-3">Новая задача</h3>
         <div class="row g-3">
           <div class="col-12 col-md-6">
-            <label class="form-label">Название</label>
-            <input class="form-control" v-model="packageTaskForm.title" />
+            <label class="form-label" for="new-task-title">Название</label>
+            <input id="new-task-title" class="form-control" v-model="packageTaskForm.title" />
           </div>
           <div class="col-12 col-md-3">
-            <label class="form-label">Сложность</label>
-            <select class="form-select" v-model="packageTaskForm.difficulty">
-              <option value="easy">easy</option>
-              <option value="medium">medium</option>
-              <option value="hard">hard</option>
+            <label class="form-label" for="new-task-difficulty">Сложность</label>
+            <select id="new-task-difficulty" class="form-select" v-model="packageTaskForm.difficulty">
+              <option value="easy">Лёгкая</option>
+              <option value="medium">Средняя</option>
+              <option value="hard">Сложная</option>
             </select>
           </div>
           <div class="col-12 col-md-3">
-            <label class="form-label">Проверка</label>
-            <select class="form-select" v-model="packageTaskForm.check_type">
-              <option value="tests">tests</option>
-              <option value="gpt">gpt</option>
+            <label class="form-label" for="new-task-check_type">Проверка</label>
+            <select id="new-task-check_type" class="form-select" v-model="packageTaskForm.check_type">
+              <option value="tests">По тестам</option>
+              <option value="gpt">Нейросетью</option>
             </select>
           </div>
           <div class="col-12">
-            <label class="form-label">Условие</label>
-            <textarea class="form-control" v-model="packageTaskForm.statement_md" rows="5"></textarea>
+            <label class="form-label" for="new-task-statement_md">Условие</label>
+            <textarea id="new-task-statement_md" class="form-control" v-model="packageTaskForm.statement_md" rows="5"></textarea>
           </div>
           <div class="col-12">
-            <label class="form-label">Тесты (JSON массив)</label>
-            <textarea class="form-control" v-model="packageTaskForm.tests_json" rows="5"></textarea>
+            <label class="form-label" for="new-task-tests_json">Тесты (JSON массив)</label>
+            <textarea id="new-task-tests_json" class="form-control" v-model="packageTaskForm.tests_json" rows="5"></textarea>
             <div class="form-text">Поддерживается JSON-массив тест-кейсов.</div>
           </div>
           <div class="col-12 d-flex gap-2">
@@ -92,3 +91,13 @@ defineProps({
 
 defineEmits(['back', 'open-panel', 'close-panel', 'export', 'delete-package', 'create-task', 'open-task'])
 </script>
+
+<style scoped>
+.package-back { display:inline-flex; align-items:center; gap:8px; padding:0; margin-bottom:20px; border:0; background:none; color:var(--app-muted); font-size:12px; }
+.package-actions { position:relative; }
+.package-actions summary { list-style:none; }
+.package-actions summary::-webkit-details-marker { display:none; }
+.package-actions > div { position:absolute; z-index:10; right:0; top:calc(100% + 8px); width:190px; padding:6px; background:var(--app-card); border:1px solid var(--app-border); border-radius:8px; box-shadow:var(--app-popover-shadow); }
+.package-actions button { display:flex; align-items:center; gap:10px; width:100%; padding:12px; border:0; background:transparent; color:var(--app-ink); font-size:12px; text-align:left; }
+.package-actions button:hover { background:var(--app-bg-soft); }
+</style>

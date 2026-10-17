@@ -27,10 +27,10 @@ defineProps({ test: { type: Object, required: true }, index: { type: Number, def
 .test-result-heading strong { font-size:13px; font-weight:500; }
 .test-indicator { font-size:16px; line-height:1; color:var(--app-muted); }
 .test-status { margin-left:auto; color:var(--app-muted); font-size:12px; }
-.test-passed { border-color:#42644c; background:#233b2e33; }
-.test-passed .test-indicator, .test-passed .test-status { color:#afdabd; }
-.test-failed { border-color:#78454e; }
-.test-failed .test-indicator, .test-failed .test-status { color:#efb0b8; }
+.test-passed { border-color:var(--app-success-border); background:var(--app-success-bg); }
+.test-passed .test-indicator, .test-passed .test-status { color:var(--app-success); }
+.test-failed { border-color:var(--app-danger-border); }
+.test-failed .test-indicator, .test-failed .test-status { color:var(--app-danger); }
 .test-output-details { padding:0 12px 10px; }
 .test-output-details summary { cursor:pointer; color:var(--app-muted); font-size:12px; }
 .test-output-details label { display:block; color:var(--app-muted); margin:12px 0; font-size:12px; }

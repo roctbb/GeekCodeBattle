@@ -96,6 +96,8 @@ it('ignores invalid persisted volume and draft types', async () => {
   const editor = wrapper.findComponent({ name: 'StudentActiveRoomView' })
   expect(editor.attributes('submit-language')).toBe('python')
   expect(editor.attributes('submit-code')).toBe('valid fallback')
+  await wrapper.get('.account-trigger').trigger('click')
+  await wrapper.findAll('button').find(button => button.text() === 'Настройки интерфейса').trigger('click')
   expect(wrapper.text()).toContain('Громкость 40%')
 })
 it('restores a missed round finish, opens stopped battle results, and resumes through admission', async () => {
@@ -193,6 +195,7 @@ it('does not restore a session from a delayed snapshot after logout', async () =
   await router.push('/')
   wrapper = mount(App, { global: { plugins: [router] } })
   await flushPromises()
+  await wrapper.get('.account-trigger').trigger('click')
   await wrapper.findAll('button').find(button => button.text() === 'Выйти').trigger('click')
   await flushPromises()
   resolveSnapshot({ data: { me, room_id: null, battle_id: null, last_result: null } })
@@ -215,7 +218,7 @@ it('loads the requested task on a direct teacher link', async () => {
   await flushPromises()
   await vi.waitFor(() => expect(wrapper.find('#task-title').exists()).toBe(true))
   expect(wrapper.get('#task-title').element.value).toBe('Сумма')
-  expect(wrapper.text()).toContain('Так увидит ученик')
+  expect(wrapper.text()).toContain('Вид для ученика')
 })
 
 it('does not replay historical celebrations and announces an observed round only once', async () => {

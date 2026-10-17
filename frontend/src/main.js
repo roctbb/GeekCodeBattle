@@ -13,7 +13,8 @@ import App from './App.vue'
 import router from './router'
 import './styles/theme.css'
 import './styles/arena.css'
-document.documentElement.dataset.bsTheme = 'dark'
+import { initializeTheme } from './composables/useTheme'
+initializeTheme()
 const app = createApp(App)
 app.config.errorHandler = (error) => {
   console.error(error)

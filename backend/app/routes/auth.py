@@ -140,6 +140,7 @@ def dev_login():
 
     session["user_id"] = str(user.id)
     session["role"] = user.role
+    session.pop("avatar_url", None)
     return ok(user_out(user))
 
 

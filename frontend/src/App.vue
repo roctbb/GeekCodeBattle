@@ -11,7 +11,7 @@
       @go-play="goToPlayPage"
       @logout="logout"
     >
-      <template #preferences><details class="experience-settings"><summary aria-label="Звук и эффекты"><AppIcon :name="audioEnabled ? 'volume-on' : 'volume-off'" /><span class="experience-label">Звук и эффекты</span></summary><div class="experience-settings-panel"><label><input type="checkbox" :checked="audioEnabled" @change="toggleAudio"> Звуки событий</label><label>Громкость {{ Math.round(audioVolume * 100) }}%<input type="range" min="0" max="1" step=".05" v-model.number="audioVolume"></label><label><input type="checkbox" v-model="animationEnabled"> Анимации событий</label><span v-if="reducedMotion" class="text-muted">Движение уменьшено настройкой системы.</span></div></details></template>
+      <template #preferences="{ embedded }"><InterfaceSettings :embedded="embedded" v-model:theme-preference="themePreference" :audio-enabled="audioEnabled" v-model:audio-volume="audioVolume" v-model:animation-enabled="animationEnabled" :reduced-motion="reducedMotion" @toggle-audio="toggleAudio" /></template>
     </AppTopbar>
 
     <main class="container py-4" :class="{ 'arena-container': myRoom.room_id && showPlayerUi && !isPersonalResults }">
@@ -45,7 +45,7 @@
         <BattleResultDetail v-else-if="route.name === 'my-result-detail'" :path="`/me/results/${route.params.battleId}`" :task-id="route.query.task ? String(route.query.task) : undefined" :restore-task-id="roomData.task?.id" :refresh-key="reportVersion" @resume="resumeBattle" @restore="restoreSubmission" />
         <template v-else-if="showTeacherConsole">
           <template v-if="teacherPage === 'battles'">
-            <BattleResultDetail v-if="isStudentReportPage" :path="`/battles/${route.params.battleId}/students/${route.params.studentId}/results`" :back-path="`/battles/${route.params.battleId}`" :task-id="route.query.task ? String(route.query.task) : undefined" :refresh-key="reportVersion" teacher />
+            <BattleResultDetail v-if="isStudentReportPage" :path="`/battles/${route.params.battleId}/students/${route.params.studentId}/results`" :back-path="`/battles/${route.params.battleId}?view=students`" :task-id="route.query.task ? String(route.query.task) : undefined" :refresh-key="reportVersion" teacher />
             <TeacherBattleRoomLogView
               v-else-if="isBattleRoomLogPage"
               :room-log="selectedBattleRoomLog"
@@ -58,6 +58,8 @@
             <TeacherBattleDetailsView
               v-else-if="isBattleDetailsPage"
               :selected-battle="selectedBattle"
+              :section="String(route.query.view || 'overview')"
+              @update:section="setTeacherSection"
               :refresh-key="reportVersion"
               @invite-saved="onInviteSaved"
               @open-student="openStudentReport"
@@ -77,6 +79,7 @@
               @add-package="addPackageToBattle"
               @remove-package="removePackageFromBattle"
               @open-room-log="openBattleRoomLog"
+              @open-packages="goToPackagesPage"
             />
 
             <TeacherBattleListView
@@ -98,6 +101,7 @@
             <TeacherTaskEditorView
               v-if="isTaskEditorPage"
               :has-task="Boolean(selectedPackageTask)"
+              :saving="isSavingPackageTask"
               :package-name="selectedTaskPackage?.package?.name || 'Пакет'"
               :package-task-form="packageTaskForm"
               @back="closeTaskEditor"
@@ -216,12 +220,16 @@
 
 <script setup>
 import AppIcon from './components/AppIcon.vue'
-import { computed, defineAsyncComponent, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue'
 import { resultLabel, verdictLabel } from './labels'
 import api from './api'
 import { io } from 'socket.io-client'
 import { useRoute, useRouter } from 'vue-router'
 import AppTopbar from './components/AppTopbar.vue'
+import InterfaceSettings from './components/InterfaceSettings.vue'
+import { useTheme, THEME_CONTEXT } from './composables/useTheme'
+const { preference: themePreference, resolved: resolvedTheme } = useTheme()
+provide(THEME_CONTEXT, resolvedTheme)
 import LoginCard from './components/LoginCard.vue'
 import BattleEvent from './components/BattleEvent.vue'
 import { useBattleEvents } from './composables/useBattleEvents'
@@ -230,6 +238,7 @@ const TeacherBattleDetailsView = defineAsyncComponent(() => import('./components
 const TeacherBattleRoomLogView = defineAsyncComponent(() => import('./components/teacher/TeacherBattleRoomLogView.vue'))
 const TeacherPackagesListView = defineAsyncComponent(() => import('./components/teacher/TeacherPackagesListView.vue'))
 const TeacherPackageDetailsView = defineAsyncComponent(() => import('./components/teacher/TeacherPackageDetailsView.vue'))
+const isSavingPackageTask = ref(false)
 const TeacherTaskEditorView = defineAsyncComponent(() => import('./components/teacher/TeacherTaskEditorView.vue'))
 const StudentActiveRoomView = defineAsyncComponent(() => import('./components/student/StudentActiveRoomView.vue'))
 import StudentBattleLobbyView from './components/student/StudentBattleLobbyView.vue'
@@ -1024,6 +1033,10 @@ async function loadBattleLogs() {
   battleLogs.value = Array.isArray(data) ? data : []
 }
 
+function setTeacherSection(section) {
+  router.replace({ query: { ...route.query, view: section === 'overview' ? undefined : section } })
+}
+
 async function openBattleRoomLog(roomId) {
   if (!selectedBattleId.value || !roomId) return
   await router.push(`/battles/${selectedBattleId.value}/rooms/${roomId}`)
@@ -1034,7 +1047,7 @@ async function goToBattleDetailsPage() {
     await router.push('/battles')
     return
   }
-  await router.push(`/battles/${selectedBattleId.value}`)
+  await router.push(`/battles/${selectedBattleId.value}?view=rooms`)
 }
 
 async function loadSelectedBattleRoomLog(roomId = route.params.roomId ? String(route.params.roomId) : null) {
@@ -1136,7 +1149,7 @@ async function loadBattleContext() {
   if (!selectedBattleId.value) return
   const jobs = [loadQueue(), loadLeaderboard()]
   if (isTeacher.value) jobs.push(loadBattleTasks(), loadBattlePackages())
-  if (showTeacherConsole.value) jobs.push(loadBattleLogs())
+  if (showTeacherConsole.value && (isBattleRoomLogPage.value || (isBattleDetailsPage.value && route.query.view === 'rooms'))) jobs.push(loadBattleLogs())
   if (showTeacherConsole.value && isBattleRoomLogPage.value) jobs.push(loadSelectedBattleRoomLog())
   await Promise.all(jobs)
 }
@@ -1342,7 +1355,7 @@ async function openTaskEditor(task) {
 }
 
 async function saveSelectedPackageTask() {
-  if (!selectedTaskPackageId.value || !selectedPackageTaskId.value) return
+  if (isSavingPackageTask.value || !selectedTaskPackageId.value || !selectedPackageTaskId.value) return
   let tests
   try {
     tests = JSON.parse(packageTaskForm.tests_json || '[]')
@@ -1351,15 +1364,21 @@ async function saveSelectedPackageTask() {
     notify('Некорректный JSON тестов', 'error')
     return
   }
-  await api.patch(`/task-packages/${selectedTaskPackageId.value}/tasks/${selectedPackageTaskId.value}`, {
-    title: packageTaskForm.title,
-    statement_md: packageTaskForm.statement_md,
-    difficulty: packageTaskForm.difficulty,
-    check_type: packageTaskForm.check_type,
-    config: { ...selectedPackageTask.value?.config, tests }
-  })
-  notify('Задача обновлена', 'success')
-  await selectTaskPackage(selectedTaskPackageId.value, { resetTaskSelection: false })
+  const packageId = selectedTaskPackageId.value, taskId = selectedPackageTaskId.value
+  isSavingPackageTask.value = true
+  try {
+    await api.patch(`/task-packages/${packageId}/tasks/${taskId}`, {
+      title: packageTaskForm.title,
+      statement_md: packageTaskForm.statement_md,
+      difficulty: packageTaskForm.difficulty,
+      check_type: packageTaskForm.check_type,
+      config: { ...selectedPackageTask.value?.config, tests }
+    })
+    notify('Задача обновлена', 'success')
+    if (selectedTaskPackageId.value === packageId && selectedPackageTaskId.value === taskId) {
+      await selectTaskPackage(packageId, { resetTaskSelection: false })
+    }
+  } finally { isSavingPackageTask.value = false }
 }
 
 async function removeSelectedPackageTask() {

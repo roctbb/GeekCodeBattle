@@ -31,6 +31,7 @@ def process_login_token(token: str) -> User:
 
     session["user_id"] = str(user.id)
     session["role"] = user.role
+    session["avatar_url"] = payload.get("avatar_url") if isinstance(payload.get("avatar_url"), str) else None
     return user
 
 

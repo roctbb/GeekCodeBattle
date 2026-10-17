@@ -11,7 +11,7 @@
         </div>
         <button class="btn btn-outline-secondary action-btn" @click="$emit('back')">
           <AppIcon name="arrow-left" />
-          <span>Назад к логу сражения</span>
+          <span>К комнатам</span>
         </button>
       </header>
 
@@ -304,25 +304,25 @@ function isRechecking(submissionId) {
 }
 
 .difficulty-easy {
-  background: #233b2e;
-  color: #afdabd;
-  border: 1px solid #42644c;
+  background: var(--app-success-bg);
+  color: var(--app-success);
+  border: 1px solid var(--app-success-border);
 }
 
 .difficulty-medium {
-  background: #383022;
-  color: #e5c58c;
-  border: 1px solid #695736;
+  background: var(--app-warning-bg);
+  color: var(--app-warning);
+  border: 1px solid var(--app-warning-border);
 }
 
 .difficulty-hard {
-  background: #452b31;
-  color: #efb0b8;
-  border: 1px solid #78454e;
+  background: var(--app-danger-bg);
+  color: var(--app-danger);
+  border: 1px solid var(--app-danger-border);
 }
 
 .difficulty-unknown {
-  background: #2c3237;
+  background: var(--app-surface-muted);
   color: var(--app-muted);
   border: 1px solid var(--app-border);
 }

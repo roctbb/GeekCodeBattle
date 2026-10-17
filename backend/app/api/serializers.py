@@ -1,8 +1,12 @@
+from flask import session
+
+
 def user_out(user):
     return {
         "id": str(user.id),
         "external_id": user.external_id,
         "name": user.name,
+        "avatar_url": session.get("avatar_url") if session.get("user_id") == str(user.id) else None,
         "role": user.role,
         "rating": user.rating,
         "season_points": user.season_points,

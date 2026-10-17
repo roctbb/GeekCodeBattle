@@ -31,10 +31,12 @@ it('opens a specific student and task from the teacher matrix', async () => {
   mocks.get.mockResolvedValue({data})
   wrapper=mount(TeacherBattleStatistics,{props:{battleId:'battle'},global})
   await flushPromises()
+  expect(wrapper.findAll('.matrix-cell')).toHaveLength(0)
+  await wrapper.findAll('button').find(b => b.text() === 'По задачам').trigger('click')
   const cell=wrapper.findAll('button').find(b=>b.attributes('aria-label')?.includes('Сумма'))
   await cell.trigger('click')
   expect(wrapper.emitted('open-student')[0][0]).toEqual({studentId:'masha',taskId:'one'})
-  await wrapper.get('input').setValue('Другой')
+  await wrapper.get('[aria-label="Поиск ученика"]').setValue('Другой')
   expect(wrapper.text()).toContain('По запросу никого не найдено')
 })
 it('shows both accepted and failed code as text and distinguishes unassigned tasks', async () => {

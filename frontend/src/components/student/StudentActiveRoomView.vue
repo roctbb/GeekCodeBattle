@@ -216,6 +216,7 @@
                     v-model="settings.theme"
                     class="form-select form-select-sm"
                   >
+                    <option value="system">Как в приложении</option>
                     <option value="dark">Тёмная</option>
                     <option value="light">Светлая</option>
                   </select></label
@@ -245,7 +246,7 @@
           :model-value="submitCode"
           :language="submitLanguage"
           :font-size="settings.fontSize"
-          :theme="settings.theme"
+          :theme="settings.theme === 'system' ? appTheme : settings.theme"
           :tab-size="settings.tabSize"
           :wrap="settings.wrap"
           :diagnostics="editorDiagnostics"
@@ -438,8 +439,10 @@
   </section>
 </template>
 <script setup>
-import { computed, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
+import { computed, inject, nextTick, onMounted, onUnmounted, reactive, ref, watch } from 'vue'
 import AppIcon from '../AppIcon.vue'
+import { THEME_CONTEXT } from '../../composables/useTheme'
+const appTheme = inject(THEME_CONTEXT, ref('dark'))
 import SolutionEditor from '../SolutionEditor.vue'
 import MarkdownText from '../MarkdownText.vue'
 import TestResult from '../TestResult.vue'
@@ -485,7 +488,7 @@ const editor = ref(),
   cursor = ref({ line: 1, column: 1 })
 const settings = reactive({
   fontSize: 15,
-  theme: 'dark',
+  theme: 'system',
   tabSize: 4,
   wrap: false,
   taskWidth: 34,
@@ -508,7 +511,7 @@ settings.consoleHeight = Math.max(
   Math.min(460, Number(settings.consoleHeight) || 190),
 )
 if (![2, 4, 8].includes(settings.tabSize)) settings.tabSize = 4
-settings.theme = settings.theme === 'light' ? 'light' : 'dark'
+if (!['light', 'dark', 'system'].includes(settings.theme)) settings.theme = 'system'
 settings.wrap = settings.wrap === true
 watch(settings, () => {
   try {
@@ -882,7 +885,7 @@ onUnmounted(() => {
   padding: 16px;
   background: var(--app-card);
   border: 1px solid var(--app-border);
-  box-shadow: 0 8px 24px #0007;
+  box-shadow: var(--app-popover-shadow);
   display: grid;
   gap: 12px;
 }
@@ -1069,6 +1072,10 @@ onUnmounted(() => {
   font-size: 12px;
   color: var(--app-muted);
 }
+:global([data-theme='light'] .match-intro) {
+  background:linear-gradient(0deg,#f4f5f1f5,#f4f5f1b8),url('../../assets/arena/temple.jpg') center 35% / cover;
+}
+:global([data-theme='light'] .match-contenders article) { background:var(--app-card); }
 @keyframes count-pop {
   from {
     transform: scale(1.35);

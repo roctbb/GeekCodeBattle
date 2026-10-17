@@ -390,10 +390,10 @@ const formatDate = (value) =>
 .standing-place small { color:var(--app-muted); font-size:16px; font-weight:400; }
 .standing-change { display:grid; gap:4px; margin:0; max-width:260px; font-size:13px; color:var(--app-muted); }
 .standing-change strong { font-size:18px; color:var(--app-ink); }
-.standing-change.up strong { color:#afdabd; }.standing-change.down strong { color:#efb0b8; }
+.standing-change.up strong { color:var(--app-success); }.standing-change.down strong { color:var(--app-danger); }
 .standing-neighbors { display:grid; gap:6px; margin:0; padding:0; list-style:none; }
 .standing-neighbors li { display:flex; align-items:center; gap:14px; padding:11px 14px; background:var(--app-bg-soft); border:1px solid transparent; font-size:13px; }
-.standing-neighbors li.is-me { background:#332d21; border-color:#75613e; }
+.standing-neighbors li.is-me { background:var(--app-brand-soft); border-color:var(--app-brand-border); }
 .neighbor-place { width:22px; color:var(--app-muted); font-variant-numeric:tabular-nums; }
 .neighbor-name { flex:1; min-width:0; overflow-wrap:anywhere; }.neighbor-name small { margin-left:8px; color:var(--app-brand); }
 .standing-neighbors li > strong { flex:none; font-variant-numeric:tabular-nums; }.standing-neighbors strong small { font-size:11px; font-weight:400; color:var(--app-muted); }

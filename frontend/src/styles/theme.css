@@ -93,7 +93,7 @@ a {
 .form-control,
 .form-select {
   border: 1px solid var(--app-border);
-  background: #fdfefe;
+  background-color: var(--app-field, #fdfefe);
 }
 
 .form-control:focus,

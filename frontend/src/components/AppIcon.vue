@@ -11,7 +11,7 @@ import {
   faCopy, faDoorOpen, faDownload, faFileLines, faFloppyDisk,
   faMinus, faPaperPlane, faPause, faPlus, faRotate, faStop,
   faTableColumns, faTrashCan, faUsers, faVolumeHigh, faVolumeXmark, faXmark,
-  faPlay,
+  faPlay, faGear, faSun, faMoon, faDesktop, faUser,
 } from '@fortawesome/free-solid-svg-icons'
 
 // The stylesheet is bundled by main.js; no runtime styles or remote assets.
@@ -45,6 +45,11 @@ const icons = {
   'volume-off': faVolumeXmark,
   close: faXmark,
   play: faPlay,
+  settings: faGear,
+  sun: faSun,
+  moon: faMoon,
+  monitor: faDesktop,
+  user: faUser,
 }
 
 defineProps({ name: { type: String, required: true } })

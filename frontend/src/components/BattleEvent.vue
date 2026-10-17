@@ -75,7 +75,7 @@ onUnmounted(() => cancelAnimationFrame(frame))
   inset: 0;
   z-index: 1120;
   background:
-    radial-gradient(ellipse at center, #93662d44, transparent 65%), #101215f5;
+    radial-gradient(ellipse at center, #93662d44, transparent 65%), var(--app-bg);
   display: grid;
   place-items: center;
   padding: 30px 20px;
@@ -106,7 +106,7 @@ onUnmounted(() => cancelAnimationFrame(frame))
   margin: 15px 0;
 }
 .event-content > p:not(.event-kicker) {
-  color: #d5dce1;
+  color: var(--app-ink);
   font-size: 14px;
 }
 .event-score {
@@ -157,9 +157,9 @@ onUnmounted(() => cancelAnimationFrame(frame))
   inset: auto 18px 70px auto;
   max-width: min(440px, calc(100vw - 36px));
   padding: 23px 26px;
-  border: 1px solid #ae8d54;
-  box-shadow: 0 10px 40px #0008;
-  background: #24251df5;
+  border: 1px solid var(--app-brand-border);
+  box-shadow: var(--app-popover-shadow);
+  background: var(--app-card);
   pointer-events: none;
 }
 .is-compact .event-medal {
