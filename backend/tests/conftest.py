@@ -16,6 +16,7 @@ def app(tmp_path, monkeypatch):
         'SQLALCHEMY_DATABASE_URI': f'sqlite:///{tmp_path / "test.db"}',
         'AUTO_CREATE_DB': True, 'GEEKPASTE_CALLBACK_REQUIRE_AUTH': False,
         'MATCHMAKING_DELAY_SECONDS': 1, 'CELERY_ENABLED': False,
+        'ROUND_INTRO_SECONDS': 0,
         'ROUND_TIMEOUT_BACKGROUND_ENABLED': False, 'ENABLE_DEV_LOGIN': True,
         'SOCKETIO_MESSAGE_QUEUE': '', 'SESSION_COOKIE_SECURE': False,
         'PROXY_FIX_ENABLED': False, 'BACKEND_URL': 'http://localhost:8090',

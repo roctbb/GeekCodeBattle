@@ -7,6 +7,7 @@ from ..models import BattleMember
 from ..utils import as_uuid
 from ..services.battles_service import get_battle_or_none
 from ..services.reports_service import battle_report, my_results
+from ..services.standings_service import battle_standing_context
 
 results_bp = Blueprint('results', __name__, url_prefix='/api/v1')
 
@@ -24,7 +25,8 @@ def my_result(battle_id):
     user = current_user()
     if not is_battle_member(user, battle):
         return fail('Результат недоступен.', 403)
-    report = battle_report(battle, user_id=user.id, detail=True)
+    report = battle_report(battle, user_id=user.id, detail=True, hide_preparing=True)
+    report['standing'] = battle_standing_context(battle.id, user.id)
     report['students'][0].pop('place', None)
     return ok(report)
 
@@ -49,5 +51,6 @@ def student_result(battle_id, student_id):
     if not battle or not db.session.get(BattleMember, (battle.id, uid)):
         return fail('Участник не найден.', 404)
     report = battle_report(battle, user_id=uid, detail=True)
+    report['standing'] = battle_standing_context(battle.id, uid)
     report['students'][0].pop('place', None)
     return ok(report)

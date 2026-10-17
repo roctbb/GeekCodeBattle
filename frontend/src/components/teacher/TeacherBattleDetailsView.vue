@@ -381,9 +381,9 @@ function formatDate(value) {
   height: 22px;
   padding: 0 0.35rem;
   border-radius: 999px;
-  background: #eef3ff;
-  color: #234794;
-  border: 1px solid #d6e1fa;
+  background: #302d27;
+  color: var(--app-brand);
+  border: 1px solid var(--app-border);
   font-size: 0.74rem;
   font-weight: 700;
 }
@@ -395,7 +395,7 @@ function formatDate(value) {
 }
 
 .room-card {
-  border: 1px solid #dde6f8;
+  border: 1px solid var(--app-border);
   border-radius: 12px;
   background: var(--app-card);
   padding: 1rem;
@@ -409,7 +409,7 @@ function formatDate(value) {
 }
 
 .soft-panel :deep(.list-group-item) {
-  border-color: #dde7fa;
+  border-color: var(--app-border);
   background: transparent;
 }
 
@@ -418,7 +418,7 @@ function formatDate(value) {
 }
 
 .soft-panel :deep(.progress) {
-  background: #e5edff;
+  background: var(--app-bg);
 }
 
 .soft-panel :deep(.progress-bar) {

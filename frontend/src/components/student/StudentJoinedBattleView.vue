@@ -53,14 +53,14 @@
         <small class="text-muted d-block">{{ matchmakingStatus.details }}</small>
       </section>
 
-      <details class="bonus-rules mb-4"><summary>Как начисляются бонусы</summary><ul class="bonus-rule-list mt-3 mb-0"><li>2 победы подряд: +10 очков</li><li>3 победы подряд: +20 очков</li><li>4 и больше: +30 очков</li><li>Победа после 3 поражений: +20 очков</li></ul></details>
+      <details class="bonus-rules mb-4"><summary>Как начисляются бонусы</summary><ul class="bonus-rule-list mt-3 mb-0"><li>2 победы подряд: +10 очков</li><li>3 победы подряд: +20 очков</li><li>4 и больше: +30 очков</li><li>Победа после 3 поражений: +20 очков</li><li>Решение после сдачи соперника: +20 очков</li></ul></details>
 
       <div class="d-flex justify-content-between align-items-center gap-2 mb-2">
         <h3 class="h6 mb-0">Таблица лобби</h3>
         <small class="text-muted">Позиция считается по очкам и рейтингу</small>
       </div>
 
-      <div class="scoreboard-list" v-if="scoreboard.length">
+      <TransitionGroup name="scoreboard" tag="div" class="scoreboard-list" v-if="scoreboard.length">
         <article class="scoreboard-item" :class="{ 'is-me': p.user_id === meId }" v-for="p in scoreboard" :key="p.user_id">
           <div class="d-flex justify-content-between align-items-center gap-2 mb-1">
             <div class="d-flex align-items-center gap-2 flex-wrap">
@@ -85,7 +85,7 @@
             <div class="progress-bar" :style="{ width: `${p.progress_percent}%` }"></div>
           </div>
         </article>
-      </div>
+      </TransitionGroup>
 
       <p class="text-muted mb-0" v-else>Пока нет участников в таблице.</p>
     </div>

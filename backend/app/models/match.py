@@ -28,6 +28,7 @@ class MatchParticipant(UUIDPKMixin, db.Model):
     student_id = db.Column(UUID(as_uuid=True), db.ForeignKey("users.id"), nullable=False)
     result_type = db.Column(db.Text, nullable=True)
     accepted_at = db.Column(db.DateTime(timezone=True), nullable=True)
+    surrendered_at = db.Column(db.DateTime(timezone=True), nullable=True)
     disconnected_at = db.Column(db.DateTime(timezone=True), nullable=True)
     progress = db.Column(db.Numeric(5, 4), nullable=True)
     place = db.Column(db.Integer, nullable=True)

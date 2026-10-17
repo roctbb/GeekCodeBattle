@@ -1,6 +1,7 @@
 import hashlib
 import json
 import time
+from datetime import datetime, timezone
 
 import jwt
 import redis
@@ -76,6 +77,17 @@ def mark_callback_processed(payload, callback_id):
         pass
 
 
+def checker_feedback_raw(payload):
+    """Keep structured feedback when the checker omits top-level details."""
+    comment = payload.get("comment")
+    details = payload.get("details")
+    if isinstance(details, list) and details:
+        return json.dumps({"comment": comment, "details": details}, ensure_ascii=False)
+    if isinstance(comment, (dict, list)):
+        return json.dumps(comment, ensure_ascii=False)
+    return str(comment) if comment is not None else None
+
+
 def apply_checker_result(payload):
     from .scoring_service import lock_scoring
     lock_scoring()
@@ -98,23 +110,7 @@ def apply_checker_result(payload):
 
     submission.checker_status_raw = status
 
-    comment_raw = payload.get("comment")
-    details_raw = payload.get("details")
-    if isinstance(details_raw, list):
-        # Preserve per-test details from checker callback for UI rendering.
-        submission.checker_comment_raw = json.dumps(
-            {
-                "comment": comment_raw,
-                "details": details_raw,
-            },
-            ensure_ascii=False,
-        )
-    elif isinstance(comment_raw, (dict, list)):
-        submission.checker_comment_raw = json.dumps(comment_raw, ensure_ascii=False)
-    elif comment_raw is None:
-        submission.checker_comment_raw = None
-    else:
-        submission.checker_comment_raw = str(comment_raw)
+    submission.checker_comment_raw = checker_feedback_raw(payload)
 
     submission.callback_received_at = db.func.now()
     submission.verdict = "accepted" if status == "success" and progress >= 1.0 else ("wrong_answer" if status == "success" else "internal_error")
@@ -131,17 +127,17 @@ def apply_checker_result(payload):
     became_accepted = False
     if match_is_active:
         participant = MatchParticipant.query.filter_by(match_id=submission.match_id, student_id=submission.student_id).first()
-        if participant:
+        if participant and participant.surrendered_at is None and participant.result_type != "loss":
             participant.progress = max(float(participant.progress or 0), progress)
             if submission.verdict == "accepted" and participant.accepted_at is None:
-                participant.accepted_at = db.func.now()
+                participant.accepted_at = datetime.now(timezone.utc)
                 became_accepted = True
 
     db.session.commit()
     emit_submission_verdict(
         submission.match_id,
         submission.student_id,
-        submission.verdict,
+        "surrendered" if participant and participant.surrendered_at else submission.verdict,
         progress,
         battle_id=(room.battle_id if room else None),
         visible_tests_passed=submission.visible_tests_passed,

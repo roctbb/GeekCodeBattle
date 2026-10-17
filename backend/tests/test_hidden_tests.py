@@ -55,7 +55,7 @@ def test_hiding_tests_during_pending_submission_preserves_round_and_scoring(app,
     assert after['match_id'] == before['match_id']
     assert after['status'] == 'active'
     assert after['round']['started_at'] == before['round']['started_at']
-    assert after['round']['deadline_at'] == before['round']['deadline_at']
+    assert after['round']['surrender_available_at'] == before['round']['surrender_available_at']
     assert after['my_submission']['verdict'] == 'queued'
     assert after['task']['public_tests'] == [{'input': '1 2', 'expected': '3', 'passed': None, 'actual': None}]
     assert teacher.get(f'/api/v1/tasks/{task_id}').get_json()['config']['tests'] == marked

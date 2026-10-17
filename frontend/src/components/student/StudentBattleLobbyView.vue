@@ -1,8 +1,8 @@
 <template>
   <section class="invite-page">
     <div class="invite-intro">
-      <p class="eyebrow">GeekCodeBattle</p>
-      <h1>Готовы к новому раунду?</h1>
+      <p class="eyebrow">CodeBattle · Арена алгоритмов</p>
+      <h1>Твой код.<br><span class="brand-gold">Твоя победа.</span></h1>
       <p class="text-muted">
         Получите инвайт у преподавателя, войдите в батл и подтвердите готовность
         в лобби.
@@ -36,7 +36,7 @@
           class="btn btn-primary w-100 mt-2"
           :disabled="loading || !code.trim()"
         >
-          {{ loading ? 'Подключаемся…' : 'Войти в батл' }}
+          {{ loading ? 'Подключаемся…' : 'На арену' }}
         </button>
       </div>
     </form>

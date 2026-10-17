@@ -58,6 +58,7 @@ def participant_out(p):
         "student_id": str(p.student_id),
         "result_type": p.result_type,
         "accepted_at": p.accepted_at.isoformat() if p.accepted_at else None,
+        "surrendered_at": p.surrendered_at.isoformat() if p.surrendered_at else None,
         "disconnected_at": p.disconnected_at.isoformat() if p.disconnected_at else None,
         "progress": float(p.progress) if p.progress is not None else None,
         "place": p.place,

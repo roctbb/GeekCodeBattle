@@ -49,3 +49,15 @@ it('shows both accepted and failed code as text and distinguishes unassigned tas
   await wrapper.get('select').setValue('unsolved')
   expect(wrapper.findAll('.result-task')).toHaveLength(0)
 })
+
+it('shows the real tournament position, movement and neighboring participants', async () => {
+  mocks.get.mockResolvedValue({ data: { ...data, standing: { place: 3, total: 12, previous_place: 5, change: 2,
+    neighbors: [{ user_id: 'other', name: 'Аня', place: 2, battle_points: 150 }, { user_id: 'masha', name: 'Маша', place: 3, battle_points: 140 }] } } })
+  wrapper = mount(BattleResultDetail, { props: { path: '/me/results/battle' }, global })
+  await flushPromises()
+  expect(wrapper.get('.standing-place').text()).toBe('3 из 12')
+  expect(wrapper.get('.standing-change').text()).toContain('↑ 2')
+  expect(wrapper.get('.standing-neighbors .is-me').text()).toContain('МашаВы')
+  expect(wrapper.get('.standing-neighbors .is-me').text()).toContain('140')
+  expect(wrapper.text()).toContain('Аня')
+})

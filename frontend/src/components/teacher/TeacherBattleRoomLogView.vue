@@ -226,8 +226,8 @@ function isRechecking(submissionId) {
 }
 
 .overview-tile {
-  border: 1px solid #d9e2f6;
-  border-radius: 12px;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
   background: var(--app-card);
   padding: 0.75rem;
 }
@@ -235,19 +235,19 @@ function isRechecking(submissionId) {
 .overview-value {
   font-size: 1.35rem;
   font-weight: 800;
-  color: #203565;
+  color: var(--app-ink);
   line-height: 1.1;
 }
 
 .overview-label {
-  color: #607191;
+  color: var(--app-muted);
   font-size: 0.82rem;
 }
 
 .round-card {
-  border: 1px solid #dbe4f8;
-  border-radius: 14px;
-  background: #fbfdff;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-card);
   padding: 0.95rem;
 }
 
@@ -263,7 +263,7 @@ function isRechecking(submissionId) {
   font-size: 0.72rem;
   letter-spacing: 0.05em;
   text-transform: uppercase;
-  color: #607191;
+  color: var(--app-muted);
   font-weight: 700;
 }
 
@@ -274,9 +274,9 @@ function isRechecking(submissionId) {
 }
 
 .task-statement {
-  border: 1px solid #dce4f7;
-  border-radius: 10px;
-  background: #f8fbff;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-bg-soft);
   padding: 0.55rem 0.65rem;
 }
 
@@ -284,7 +284,7 @@ function isRechecking(submissionId) {
   font-size: 0.74rem;
   text-transform: uppercase;
   letter-spacing: 0.04em;
-  color: #5f7090;
+  color: var(--app-muted);
   font-weight: 700;
   margin-bottom: 0.3rem;
 }
@@ -296,7 +296,7 @@ function isRechecking(submissionId) {
   overflow: auto;
   font-size: 0.84rem;
   line-height: 1.35;
-  color: #2a3f69;
+  color: var(--app-ink);
 }
 
 .difficulty-badge {
@@ -304,27 +304,27 @@ function isRechecking(submissionId) {
 }
 
 .difficulty-easy {
-  background: #e7f8ee;
-  color: #1f7a40;
-  border: 1px solid #c7e9d4;
+  background: #233b2e;
+  color: #afdabd;
+  border: 1px solid #42644c;
 }
 
 .difficulty-medium {
-  background: #fff8e8;
-  color: #8c6100;
-  border: 1px solid #f1dfb6;
+  background: #383022;
+  color: #e5c58c;
+  border: 1px solid #695736;
 }
 
 .difficulty-hard {
-  background: #ffeef0;
-  color: #a12938;
-  border: 1px solid #f8d0d5;
+  background: #452b31;
+  color: #efb0b8;
+  border: 1px solid #78454e;
 }
 
 .difficulty-unknown {
-  background: #eef2f8;
-  color: #55627d;
-  border: 1px solid #d7dfec;
+  background: #2c3237;
+  color: var(--app-muted);
+  border: 1px solid var(--app-border);
 }
 
 .participants-grid {
@@ -334,16 +334,16 @@ function isRechecking(submissionId) {
 }
 
 .participant-card {
-  border: 1px solid #dbe4f8;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-card);
   padding: 0.55rem;
 }
 
 .progress-track {
   height: 7px;
   border-radius: 999px;
-  background: #e8eefb;
+  background: var(--app-bg);
   overflow: hidden;
 }
 
@@ -361,15 +361,15 @@ function isRechecking(submissionId) {
 }
 
 .submission-item {
-  border: 1px solid #dfe7f8;
-  border-radius: 10px;
-  background: #fff;
+  border: 1px solid var(--app-border);
+  border-radius: 5px;
+  background: var(--app-card);
   padding: 0.65rem;
 }
 
 .code-details summary {
   cursor: pointer;
-  color: #2b5fff;
+  color: var(--app-brand);
   font-weight: 600;
 }
 
@@ -377,9 +377,9 @@ function isRechecking(submissionId) {
   max-height: 240px;
   overflow: auto;
   padding: 0.7rem;
-  border-radius: 10px;
-  background: #0f1727;
-  color: #e3ecff;
+  border-radius: 5px;
+  background: var(--app-bg);
+  color: var(--app-ink);
   font-family: ui-monospace, 'SFMono-Regular', Consolas, monospace;
   font-size: 0.82rem;
 }

@@ -84,6 +84,14 @@ def main():
             assert not result['created_rooms'], 'Expected delayed matchmaking in Celery'
         assert found.wait(15), 'Celery match_found did not reach the web Socket.IO client'
         room = received[-1]
+        # A shared countdown protects task access after matchmaking.
+        for _ in range(60):
+            state = call(a, 'GET', f'/rooms/{room["room_id"]}')
+            if not state['round']['is_preparing']:
+                break
+            time.sleep(.2)
+        assert state['task'] and state['round']['is_active']
+        assert 'deadline_at' not in state['round']
         sock.call('subscribe', {'battle_id': battle, 'room_id': room['room_id'], 'match_id': room['match_id']})
         call(outsider, 'GET', f'/rooms/{room["room_id"]}', status=403)
         call(outsider, 'GET', '/tasks', status=403)
@@ -102,7 +110,10 @@ def main():
             assert response.status_code == 200, response.text
         assert arrived.wait(10)
         assert len(verdicts) == 1, verdicts
-        call(b, 'POST', f'/rooms/{room["room_id"]}/surrender')
+        # Do not weaken production's ten-minute rule just to shorten a smoke run.
+        call(b, 'POST', f'/rooms/{room["room_id"]}/surrender', status=409)
+        assert call(b, 'GET', f'/rooms/{room["room_id"]}')['round']['is_active']
+        call(teacher, 'POST', f'/battles/{battle}/stop')
         result = call(a, 'GET', '/me/state')
         assert result['last_result']['result_type'] == 'win'
         assert result['last_result']['points'] == 140
@@ -113,13 +124,12 @@ def main():
         })
         assert call(b, 'GET', '/me/state')['last_result']['points'] == 100
         assert call(a, 'GET', '/me/state')['last_result']['points'] == 70
-        call(teacher, 'POST', f'/battles/{battle}/stop')
         report = call(a, 'GET', f'/me/results/{battle}')
         assert report['students'][0]['tasks'][0]['submissions'][0]['source_code'] == 'print(3)'
         assert call(teacher, 'GET', f'/battles/{battle}/statistics')['summary']['participants'] == 2
         call(outsider, 'GET', f'/me/results/{battle}', status=403)
         call(teacher, 'POST', f'/battles/{battle}/finish')
-        print('PASS: invite admission and private result history; PostgreSQL migrations, Nginx/WebSocket, Celery → Redis → browser events, access checks, checker callback deduplication, surrender and rejudge.')
+        print('PASS: invite admission and private result history; PostgreSQL migrations, Nginx/WebSocket, Celery → Redis → browser events, access checks, checker callback deduplication, early surrender protection and rejudge.')
         print(json.dumps({'battle_id': battle, 'room_id': room['room_id'], 'student_external_id': ua['external_id'], 'teacher_external_id': f'{prefix}-Учитель'}, ensure_ascii=False))
     finally:
         for sock in sockets:

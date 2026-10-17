@@ -1,11 +1,19 @@
 // Load vendor styles before component styles and the product theme.
 import 'bootstrap/dist/css/bootstrap.min.css'
 import '@fortawesome/fontawesome-svg-core/styles.css'
+import '@fontsource/manrope/latin-400.css'
+import '@fontsource/manrope/cyrillic-400.css'
+import '@fontsource/manrope/latin-500.css'
+import '@fontsource/manrope/cyrillic-500.css'
+import '@fontsource/manrope/latin-700.css'
+import '@fontsource/manrope/cyrillic-700.css'
 import { createApp } from 'vue'
 import { createPinia } from 'pinia'
 import App from './App.vue'
 import router from './router'
 import './styles/theme.css'
+import './styles/arena.css'
+document.documentElement.dataset.bsTheme = 'dark'
 const app = createApp(App)
 app.config.errorHandler = (error) => {
   console.error(error)

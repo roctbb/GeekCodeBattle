@@ -27,6 +27,7 @@ def find_active_room_for_user(battle_id, user_id):
             MatchParticipant.student_id == as_uuid(user_id),
             Match.finished_at.is_(None),
             MatchParticipant.accepted_at.is_(None),
+            MatchParticipant.surrendered_at.is_(None),
             db.or_(MatchParticipant.result_type.is_(None), MatchParticipant.result_type != "loss"),
         )
         .order_by(Room.created_at.desc())

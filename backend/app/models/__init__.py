@@ -6,6 +6,7 @@ from .queue import QueueEntry
 from .room import Room
 from .match import Match, MatchParticipant
 from .submission import Submission
+from .code_run import CodeRun
 from .score import ScoreEvent, RatingHistory
 from .audit import AuditLog
 
@@ -23,6 +24,7 @@ __all__ = [
     "Match",
     "MatchParticipant",
     "Submission",
+    "CodeRun",
     "ScoreEvent",
     "RatingHistory",
     "AuditLog",

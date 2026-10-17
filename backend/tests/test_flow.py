@@ -230,8 +230,8 @@ def test_rejudge_requires_all_participants(app):
     assert 'public_tests' in room['task']
     assert isinstance(room['task']['public_tests'], list)
     assert room['task']['public_tests'][0]['expected'] == '3'
-    assert room['round']['deadline_at'] is not None
-    assert room['round']['seconds_left'] >= 0
+    assert room['round']['started_at'] is not None
+    assert room['round']['surrender_available_at'] is not None
 
     rr = teacher.post(f'/api/v1/matches/{match_id}/rejudge', json={
         'reason': 'manual correction',
@@ -427,7 +427,7 @@ def test_package_crud_and_battle_create_with_packages(app):
     assert len(battle_tasks.get_json()) >= 1
 
 
-def test_grace_period_and_surrender_flow(app):
+def test_unlimited_post_win_solving_and_surrender_flow(app):
     teacher = app.test_client()
     login_dev(teacher, 'teacher-grace', 'Teacher', 'teacher')
     battle_id = create_task_and_battle(teacher)
@@ -482,10 +482,18 @@ def test_grace_period_and_surrender_flow(app):
     assert by_user_after_win[s1_user['id']]['status'] == 'not_ready'
     assert by_user_after_win[s1_user['id']]['is_fighting'] is False
 
+    from app.extensions import db
+    from app.models import Room, MatchParticipant
+    from app.utils import as_uuid
+    with app.app_context():
+        db.session.get(Room, as_uuid(room_id)).started_at = datetime.now(timezone.utc) - timedelta(hours=2)
+        winner = MatchParticipant.query.filter_by(match_id=as_uuid(match_id), student_id=as_uuid(s1_user['id'])).one()
+        winner.accepted_at = datetime.now(timezone.utc) - timedelta(hours=1)
+        db.session.commit()
     room_grace = s2.get(f'/api/v1/rooms/{room_id}').get_json()
-    assert room_grace['grace']['winner_student_id'] == s1_user['id']
-    assert room_grace['grace']['can_surrender'] is True
-    assert room_grace['grace']['is_active'] is True
+    assert room_grace['leader']['winner_student_id'] == s1_user['id']
+    assert room_grace['round']['can_surrender'] is True
+    assert room_grace['round']['is_active'] is True
 
     surrender_r = s2.post(f'/api/v1/rooms/{room_id}/surrender')
     assert surrender_r.status_code == 200
@@ -867,7 +875,7 @@ def test_matchmaking_respects_room_size_three(app):
     assert all(size == 3 for size in room_sizes.values())
 
 
-def test_round_auto_finishes_when_all_players_disconnected_for_grace(app):
+def test_disconnected_players_can_return_without_round_expiring(app):
     from app.extensions import db
     from app.models import MatchParticipant
     from app.utils import as_uuid
@@ -906,16 +914,16 @@ def test_round_auto_finishes_when_all_players_disconnected_for_grace(app):
             participant.disconnected_at = offline_since
         db.session.commit()
 
-    # /battles/<id> triggers tick_timeouts() and should close match as all_disconnected.
+    # A disconnect never imposes a time limit on solving.
     battle_response = teacher.get(f'/api/v1/battles/{battle_id}')
     assert battle_response.status_code == 200
 
     match_after = s1.get(f'/api/v1/matches/{match_id}').get_json()
-    assert match_after['finished_at'] is not None
-    assert match_after['finished_by'] == 'all_disconnected'
+    assert match_after['finished_at'] is None
+    assert match_after['finished_by'] is None
 
 
-def test_round_timeout_marks_everyone_as_loss(app):
+def test_old_round_stays_active_without_a_time_limit(app):
     from app.extensions import db
     from app.models import Match
     from app.utils import as_uuid
@@ -951,18 +959,18 @@ def test_round_timeout_marks_everyone_as_loss(app):
         match.created_at = datetime.now(timezone.utc) - timedelta(minutes=25)
         db.session.commit()
 
-    # /battles/<id> triggers tick_timeouts() and should close the match as timeout.
+    # Maintenance must not close an old round.
     battle_response = teacher.get(f'/api/v1/battles/{battle_id}')
     assert battle_response.status_code == 200
 
     match_after = s1.get(f'/api/v1/matches/{match_id}').get_json()
-    assert match_after['finished_at'] is not None
-    assert match_after['finished_by'] == 'timeout'
+    assert match_after['finished_at'] is None
+    assert match_after['finished_by'] is None
 
     parts_after = s1.get(f'/api/v1/matches/{match_id}/participants').get_json()
     by_user = {p['student_id']: p for p in parts_after}
-    assert by_user[s1_user['id']]['result_type'] == 'loss'
-    assert by_user[s2_user['id']]['result_type'] == 'loss'
+    assert by_user[s1_user['id']]['result_type'] is None
+    assert by_user[s2_user['id']]['result_type'] is None
 
 
 def test_submit_requires_match_participation(app):

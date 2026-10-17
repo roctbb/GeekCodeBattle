@@ -1,8 +1,8 @@
 from sqlalchemy import or_
 
 from ..extensions import db
-from ..models import Match, MatchParticipant, Room, QueueEntry, Battle, BattleMember, Task, ScoreEvent
-from .scoring_service import get_winner_info
+from ..models import Match, MatchParticipant, Room, QueueEntry, Battle, BattleMember, Task, ScoreEvent, RatingHistory
+from .scoring_service import get_winner_info, SURRENDER_BONUS_REASON
 
 
 def player_state(user):
@@ -12,6 +12,7 @@ def player_state(user):
             .filter(MatchParticipant.student_id == user.id))
     active = base.filter(Match.finished_at.is_(None), Room.status == 'active',
                          MatchParticipant.accepted_at.is_(None),
+                         MatchParticipant.surrendered_at.is_(None),
                          or_(MatchParticipant.result_type.is_(None), MatchParticipant.result_type != 'loss'))\
         .order_by(Match.created_at.desc()).first()
     queued = (QueueEntry.query.join(Battle).filter(QueueEntry.user_id == user.id,
@@ -30,9 +31,15 @@ def player_state(user):
         task = db.session.get(Task, match.task_id)
         points = db.session.query(db.func.coalesce(db.func.sum(ScoreEvent.points_delta), 0)).filter_by(
             match_id=match.id, student_id=user.id).scalar()
+        rating = RatingHistory.query.filter_by(match_id=match.id, user_id=user.id).first()
+        surrender_bonus = db.session.query(db.func.coalesce(db.func.sum(ScoreEvent.points_delta), 0)).filter_by(
+            match_id=match.id, student_id=user.id, reason=SURRENDER_BONUS_REASON).scalar()
         last_result = {'match_id': str(match.id), 'battle_id': str(room.battle_id),
                        'task_title': task.title if task else 'Раунд', 'result_type': result,
-                       'points': int(points), 'place': p.place, 'is_final': match.finished_at is not None}
+                       'points': int(points), 'place': p.place, 'is_final': match.finished_at is not None,
+                       'surrendered': p.surrendered_at is not None,
+                       'surrender_bonus': int(surrender_bonus),
+                       'rating_delta': rating.new_rating - rating.old_rating if rating else None}
     recent_result = (Battle.query.join(BattleMember).filter(BattleMember.user_id == user.id,
                      Battle.status.in_(['stopped', 'finished']))
                      .order_by(Battle.stopped_at.desc(), Battle.created_at.desc()).first())

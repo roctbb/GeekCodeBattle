@@ -1,5 +1,5 @@
 <template>
-  <div class="app-shell">
+  <div class="app-shell" :class="[appScene, { 'effects-off': !effectsEnabled }]">
     <AppTopbar
       :me="me"
       :is-teacher="isTeacher"
@@ -10,7 +10,9 @@
       @go-packages="goToPackagesPage"
       @go-play="goToPlayPage"
       @logout="logout"
-    />
+    >
+      <template #preferences><details class="experience-settings"><summary aria-label="Звук и эффекты"><AppIcon :name="audioEnabled ? 'volume-on' : 'volume-off'" /><span class="experience-label">Звук и эффекты</span></summary><div class="experience-settings-panel"><label><input type="checkbox" :checked="audioEnabled" @change="toggleAudio"> Звуки событий</label><label>Громкость {{ Math.round(audioVolume * 100) }}%<input type="range" min="0" max="1" step=".05" v-model.number="audioVolume"></label><label><input type="checkbox" v-model="animationEnabled"> Анимации событий</label><span v-if="reducedMotion" class="text-muted">Движение уменьшено настройкой системы.</span></div></details></template>
+    </AppTopbar>
 
     <main class="container py-4" :class="{ 'arena-container': myRoom.room_id && showPlayerUi && !isPersonalResults }">
       <div v-if="me && (connectionState !== 'online' || dataError)" class="notice notice-warning mb-3" role="status">
@@ -19,8 +21,8 @@
       </div>
       <div v-if="!me && dataError" class="notice notice-warning mb-3" role="alert">{{ dataError }} <button class="btn btn-sm btn-outline-secondary" @click="reloadPage">Обновить страницу</button></div>
       <section v-if="me && showPlayerUi && !isPersonalResults && studentJoinedBattleId && !myRoom.room_id && lastResult?.battle_id === studentJoinedBattleId" class="round-summary mb-4" aria-live="polite">
-        <div><p class="eyebrow mb-1">Последний раунд · {{ lastResult.task_title }}</p><h2 class="h5 mb-1">{{ resultLabel(lastResult.result_type) }}</h2><p class="text-muted small mb-0">{{ lastResult.is_final ? 'Результат сохранён' : 'Остальные участники ещё дорешивают. Итоговые очки появятся после завершения.' }}</p></div>
-        <div class="text-end"><strong class="result-points">+{{ lastResult.points }}</strong><span class="text-muted small d-block">очков за раунд</span></div>
+        <div><p class="eyebrow mb-1">Последний раунд · {{ lastResult.task_title }}</p><h2 class="h5 mb-1">{{ lastResult.surrendered ? 'Вы сдались' : resultLabel(lastResult.result_type) }}</h2><p class="text-muted small mb-0">{{ lastResult.is_final ? 'Результат сохранён' : lastResult.surrendered ? 'Вы сдались. Соперники продолжают решение; итоговые очки появятся после завершения.' : 'Остальные участники ещё дорешивают. Итоговые очки появятся после завершения.' }}</p></div>
+        <div class="text-end"><strong class="result-points">+{{ lastResult.points }}</strong><span class="text-muted small d-block">очков за раунд</span><span v-if="lastResult.surrender_bonus" class="text-muted small d-block">Включая +{{ lastResult.surrender_bonus }} за решение после сдачи соперника</span></div>
       </section>
       <section class="card shadow-sm border-0" v-if="isBootstrapping">
         <div class="card-body d-flex align-items-center gap-3 py-4">
@@ -40,7 +42,7 @@
 
       <template v-else>
         <StudentResultsView v-if="route.name === 'my-results'" :refresh-key="reportVersion" :play-path="isTeacher ? '/play' : '/'" @resume="resumeBattle" />
-        <BattleResultDetail v-else-if="route.name === 'my-result-detail'" :path="`/me/results/${route.params.battleId}`" :refresh-key="reportVersion" @resume="resumeBattle" />
+        <BattleResultDetail v-else-if="route.name === 'my-result-detail'" :path="`/me/results/${route.params.battleId}`" :task-id="route.query.task ? String(route.query.task) : undefined" :restore-task-id="roomData.task?.id" :refresh-key="reportVersion" @resume="resumeBattle" @restore="restoreSubmission" />
         <template v-else-if="showTeacherConsole">
           <template v-if="teacherPage === 'battles'">
             <BattleResultDetail v-if="isStudentReportPage" :path="`/battles/${route.params.battleId}/students/${route.params.studentId}/results`" :back-path="`/battles/${route.params.battleId}`" :task-id="route.query.task ? String(route.query.task) : undefined" :refresh-key="reportVersion" teacher />
@@ -138,6 +140,9 @@
             :room-status="roomData.status"
             :active-battle-title="activeBattleTitle"
             :room-id="myRoom.room_id"
+            :battle-id="myRoom.battle_id"
+            :effects-enabled="effectsEnabled"
+            :can-restore-draft="canRestoreDraft"
             :task="roomData.task"
             :participants="roomData.participants"
             :me-id="me.id"
@@ -147,13 +152,16 @@
             :draft-status="draftStatus"
             :is-checking="isSubmissionChecking || isSubmitting"
             :opponent-activity="opponentActivity"
-            :grace="roomData.grace"
+            :leader="roomData.leader"
             :round="roomData.round"
             :my-submission="roomData.mySubmission"
             @update:submit-language="updateSubmitLanguage"
             @update:submit-code="updateSubmitCode"
             @submit="submitCode"
             @surrender="surrenderRound"
+            @round-start="syncData"
+            @countdown="playSound('countdown')"
+            @restore-draft="restorePreviousDraft"
           />
 
           <StudentJoinedBattleView
@@ -196,29 +204,13 @@
       ></span>
     </section>
 
-    <button
-      class="sound-toggle btn btn-sm"
-      :class="audioEnabled ? 'btn-primary' : 'btn-outline-secondary'"
-      type="button"
-      :title="audioEnabled ? 'Выключить звуки' : 'Включить звуки'"
-      @click="toggleAudio"
-    >
-      <AppIcon :name="audioEnabled ? 'volume-on' : 'volume-off'" />
-    </button>
+
 
     <section class="streak-chip" v-if="showPlayerUi && streak > 1" aria-live="polite">
       🔥 Серия x{{ streak }}
     </section>
 
-    <section class="round-overlay" v-if="roundOverlay.visible" aria-live="polite">
-      <div class="round-overlay-card">
-        <h3 class="mb-1">{{ roundOverlay.title }}</h3>
-        <p class="text-muted mb-2">{{ roundOverlay.subtitle }}</p>
-        <p class="mb-2" v-if="roundOverlay.positionText">{{ roundOverlay.positionText }}</p>
-        <p class="bonus-score" v-if="roundOverlay.deltaText">{{ roundOverlay.deltaText }}</p>
-        <p class="small mb-0" v-if="roundOverlay.streakText">{{ roundOverlay.streakText }}</p>
-      </div>
-    </section>
+    <BattleEvent :event="roundOverlay" :motion="effectsEnabled" :compact="Boolean(myRoom.room_id) || roundOverlay.kind === 'accepted'" @dismiss="dismissBattleEvent" />
   </div>
 </template>
 
@@ -231,17 +223,19 @@ import { io } from 'socket.io-client'
 import { useRoute, useRouter } from 'vue-router'
 import AppTopbar from './components/AppTopbar.vue'
 import LoginCard from './components/LoginCard.vue'
-import TeacherBattleListView from './components/teacher/TeacherBattleListView.vue'
-import TeacherBattleDetailsView from './components/teacher/TeacherBattleDetailsView.vue'
-import TeacherBattleRoomLogView from './components/teacher/TeacherBattleRoomLogView.vue'
-import TeacherPackagesListView from './components/teacher/TeacherPackagesListView.vue'
-import TeacherPackageDetailsView from './components/teacher/TeacherPackageDetailsView.vue'
-import TeacherTaskEditorView from './components/teacher/TeacherTaskEditorView.vue'
+import BattleEvent from './components/BattleEvent.vue'
+import { useBattleEvents } from './composables/useBattleEvents'
+const TeacherBattleListView = defineAsyncComponent(() => import('./components/teacher/TeacherBattleListView.vue'))
+const TeacherBattleDetailsView = defineAsyncComponent(() => import('./components/teacher/TeacherBattleDetailsView.vue'))
+const TeacherBattleRoomLogView = defineAsyncComponent(() => import('./components/teacher/TeacherBattleRoomLogView.vue'))
+const TeacherPackagesListView = defineAsyncComponent(() => import('./components/teacher/TeacherPackagesListView.vue'))
+const TeacherPackageDetailsView = defineAsyncComponent(() => import('./components/teacher/TeacherPackageDetailsView.vue'))
+const TeacherTaskEditorView = defineAsyncComponent(() => import('./components/teacher/TeacherTaskEditorView.vue'))
 const StudentActiveRoomView = defineAsyncComponent(() => import('./components/student/StudentActiveRoomView.vue'))
 import StudentBattleLobbyView from './components/student/StudentBattleLobbyView.vue'
 import StudentJoinedBattleView from './components/student/StudentJoinedBattleView.vue'
-import StudentResultsView from './components/results/StudentResultsView.vue'
-import BattleResultDetail from './components/results/BattleResultDetail.vue'
+const StudentResultsView = defineAsyncComponent(() => import('./components/results/StudentResultsView.vue'))
+const BattleResultDetail = defineAsyncComponent(() => import('./components/results/BattleResultDetail.vue'))
 
 const me = ref(null)
 const reportVersion = ref(0)
@@ -260,7 +254,7 @@ const taskPackages = ref([])
 const battleTasks = ref([])
 const battlePackages = ref([])
 const myRoom = reactive({ room_id: null, match_id: null, battle_id: null })
-const roomData = reactive({ status: null, participants: [], task: null, grace: null, round: null, mySubmission: null })
+const roomData = reactive({ status: null, participants: [], task: null, leader: null, round: null, mySubmission: null })
 
 const route = useRoute()
 const router = useRouter()
@@ -299,16 +293,23 @@ const burstParticles = ref([])
 let particleSeq = 0
 const leaderboardPointsMemo = reactive({})
 const audioEnabled = ref(false)
+const audioVolume = ref(.4)
+const animationEnabled = ref(true)
+const reducedMotion = ref(false)
+const effectsEnabled = computed(() => animationEnabled.value && !reducedMotion.value)
+const canRestoreDraft = ref(false)
+try {
+  const prefs = JSON.parse(localStorage.getItem('codebattle:experience') || '{}')
+  audioEnabled.value = prefs.sound === true
+  animationEnabled.value = prefs.motion !== false
+  const volume = Number(prefs.volume ?? .4)
+  audioVolume.value = Number.isFinite(volume) ? Math.min(1, Math.max(0, volume)) : .4
+} catch {}
+watch([audioEnabled, audioVolume, animationEnabled], () => { try { localStorage.setItem('codebattle:experience', JSON.stringify({ sound: audioEnabled.value, motion: animationEnabled.value, volume: audioVolume.value })) } catch {} })
 const streak = ref(0)
 const bestStreak = ref(0)
-const roundOverlay = reactive({
-  visible: false,
-  title: '',
-  subtitle: '',
-  positionText: '',
-  deltaText: '',
-  streakText: '',
-  stamp: 0
+const { event: roundOverlay, push: showRoundOverlay, dismiss: dismissBattleEvent, reset: resetBattleEvents } = useBattleEvents(event => {
+  if (event.sound) playSound(event.sound)
 })
 const isSubmissionChecking = ref(false)
 const isSubmitting = ref(false)
@@ -323,9 +324,13 @@ let refreshTimer = null
 let eventSyncTimer = null
 let syncPromise = null
 let syncAgain = false
-let graceRefreshTimer = null
 let audioCtx = null
 let unloadHandlersBound = false
+let motionMedia
+const updateMotionPreference = () => { reducedMotion.value = Boolean(motionMedia?.matches) }
+const seenRoundEvents = new Set()
+const observedMatches = new Set()
+let leaderboardBattleId = null
 
 const isTeacher = computed(() => me.value && (me.value.role === 'teacher' || me.value.role === 'admin'))
 const teacherPage = computed(() => {
@@ -336,6 +341,7 @@ const teacherPage = computed(() => {
 const teacherPlayMode = computed(() => isTeacher.value && teacherPage.value === 'play')
 const showTeacherConsole = computed(() => isTeacher.value && !teacherPlayMode.value)
 const showPlayerUi = computed(() => !isTeacher.value || teacherPlayMode.value)
+const appScene = computed(() => isPersonalResults.value ? 'scene-results' : showTeacherConsole.value ? 'scene-staff' : myRoom.room_id ? 'scene-arena' : studentJoinedBattleId.value ? 'scene-lobby' : 'scene-entry')
 const isBattleDetailsPage = computed(() => route.name === 'battle-details')
 const isBattleRoomLogPage = computed(() => route.name === 'battle-room-log')
 const isPackageDetailsPage = computed(() => route.name === 'package-details')
@@ -358,8 +364,14 @@ const toastIcon = computed(() => {
 
 function toggleAudio() {
   audioEnabled.value = !audioEnabled.value
-  if (audioEnabled.value) playSound('toggle_on')
+  if (audioEnabled.value) {
+    const ctx = ensureAudioContext()
+    if (ctx?.state === 'running') playSound('toggle_on')
+    else ctx?.resume().then(() => playSound('toggle_on')).catch(() => {})
+  }
 }
+
+function unlockAudio() { if (audioEnabled.value) ensureAudioContext()?.resume().catch(() => {}) }
 
 function ensureAudioContext() {
   if (typeof window === 'undefined') return null
@@ -372,13 +384,13 @@ function ensureAudioContext() {
 
 function playTone({ freq = 440, duration = 0.1, type = 'sine', gain = 0.08, when = 0 }) {
   const ctx = ensureAudioContext()
-  if (!ctx || !audioEnabled.value) return
+  if (!ctx || ctx.state !== 'running' || !audioEnabled.value || audioVolume.value <= 0) return
   const osc = ctx.createOscillator()
   const amp = ctx.createGain()
   osc.type = type
   osc.frequency.setValueAtTime(freq, ctx.currentTime + when)
   amp.gain.setValueAtTime(0.0001, ctx.currentTime + when)
-  amp.gain.exponentialRampToValueAtTime(gain, ctx.currentTime + when + 0.01)
+  amp.gain.exponentialRampToValueAtTime(Math.max(.0002, gain * audioVolume.value), ctx.currentTime + when + 0.01)
   amp.gain.exponentialRampToValueAtTime(0.0001, ctx.currentTime + when + duration)
   osc.connect(amp).connect(ctx.destination)
   osc.start(ctx.currentTime + when)
@@ -386,7 +398,9 @@ function playTone({ freq = 440, duration = 0.1, type = 'sine', gain = 0.08, when
 }
 
 function playSound(kind) {
-  if (!audioEnabled.value || prefersReducedMotion()) return
+  if (!audioEnabled.value) return
+  if (kind === 'countdown') { playTone({ freq: 330, duration: .09, type: 'triangle', gain: .08 }); return }
+  if (kind === 'first') { playTone({ freq: 440, duration: .12, type: 'triangle' }); playTone({ freq: 660, duration: .18, type: 'triangle', when: .12 }); return }
   if (kind === 'bonus') {
     playTone({ freq: 620, duration: 0.09, type: 'triangle', gain: 0.09, when: 0 })
     playTone({ freq: 880, duration: 0.11, type: 'triangle', gain: 0.085, when: 0.08 })
@@ -419,25 +433,8 @@ function playSound(kind) {
   }
 }
 
-function showRoundOverlay({ title, subtitle, positionText = '', deltaText = '', streakText = '' }) {
-  const stamp = Date.now()
-  roundOverlay.visible = true
-  roundOverlay.title = title
-  roundOverlay.subtitle = subtitle
-  roundOverlay.positionText = positionText
-  roundOverlay.deltaText = deltaText
-  roundOverlay.streakText = streakText
-  roundOverlay.stamp = stamp
-  setTimeout(() => {
-    if (roundOverlay.stamp === stamp) {
-      roundOverlay.visible = false
-    }
-  }, 2600)
-}
-
 function prefersReducedMotion() {
-  if (typeof window === 'undefined' || !window.matchMedia) return false
-  return window.matchMedia('(prefers-reduced-motion: reduce)').matches
+  return !effectsEnabled.value
 }
 
 function burstParticleStyle(particle) {
@@ -522,23 +519,6 @@ function showOpponentActivity(payload) {
   }, 2200)
 }
 
-function clearGraceRefreshTimer() {
-  if (graceRefreshTimer) {
-    clearTimeout(graceRefreshTimer)
-    graceRefreshTimer = null
-  }
-}
-
-function scheduleGraceRefresh() {
-  clearGraceRefreshTimer()
-  const deadlineAt = roomData.grace?.deadline_at
-  if (!deadlineAt || !myRoom.room_id) return
-  const delayMs = Math.max(800, new Date(deadlineAt).getTime() - Date.now() + 1000)
-  graceRefreshTimer = setTimeout(() => {
-    loadCurrentRoom().catch(() => {})
-  }, delayMs)
-}
-
 function goToBattlesPage() {
   router.push(isTeacher.value ? '/battles' : '/')
 }
@@ -608,7 +588,8 @@ function setupSocket() {
     if (isEventForCurrentMatch(payload)) {
       if (payload.student_id === me.value?.id) {
         isSubmissionChecking.value = false
-        notify(verdictLabel(payload.verdict), payload.verdict === 'accepted' ? 'success' : 'info')
+        if (payload.verdict === 'accepted' && showPlayerUi.value && !isPersonalResults.value) { showRoundOverlay({ title: 'Принято', subtitle: 'Решение прошло проверку', kind: 'accepted', group: `round:${payload.match_id}`, sound: 'success' }) }
+        else notify(verdictLabel(payload.verdict), 'info')
       } else {
         showOpponentActivity({ kind: payload.verdict === 'accepted' ? 'success' : 'fail', message: `${findParticipantName(payload.student_id)}: ${verdictLabel(payload.verdict)}` })
       }
@@ -673,6 +654,18 @@ function draftStorageKey(roomId) {
   return `${SUBMIT_DRAFT_STORAGE_PREFIX}:${userId}:${String(roomId)}`
 }
 
+function normalizeDraft(draft) {
+  const language = ['python', 'cpp'].includes(draft.language) ? draft.language : 'python'
+  const drafts = {}
+  for (const lang of ['python', 'cpp']) {
+    if (typeof draft.drafts?.[lang] === 'string') drafts[lang] = draft.drafts[lang]
+  }
+  const source_code = typeof draft.source_code === 'string'
+    ? draft.source_code : drafts[language] ?? DEFAULT_ROOM_SOURCE_CODE
+  drafts[language] = source_code
+  return { language, source_code, drafts }
+}
+
 function readRoomDraft(roomId) {
   if (typeof window === 'undefined') return null
   const key = draftStorageKey(roomId)
@@ -680,7 +673,14 @@ function readRoomDraft(roomId) {
   try {
     const value = window.localStorage.getItem(key)
     if (value === null) return null
-    try { const draft = JSON.parse(value); if (draft?.version === 2) return draft } catch {}
+    try {
+      const draft = JSON.parse(value)
+      if ([2, 3].includes(draft?.version)) {
+        const backup = draft.backup && typeof draft.backup.source_code === 'string'
+          ? normalizeDraft(draft.backup) : undefined
+        return { version: 3, ...normalizeDraft(draft), backup }
+      }
+    } catch {}
     return { source_code: value, language: 'python' }
   } catch {
     return null
@@ -692,7 +692,8 @@ function writeRoomDraft(roomId, sourceCode) {
   const key = draftStorageKey(roomId)
   if (!key) return
   try {
-    window.localStorage.setItem(key, JSON.stringify({ version: 2, source_code: String(sourceCode ?? ''), language: submitForm.language }))
+    const stored = readRoomDraft(roomId)
+    window.localStorage.setItem(key, JSON.stringify({ version: 3, source_code: String(sourceCode ?? ''), language: submitForm.language, drafts: { ...stored?.drafts, [submitForm.language]: String(sourceCode ?? '') }, backup: stored?.backup }))
     draftStatus.value = 'Черновик сохранён на устройстве'
   } catch { draftStatus.value = 'Не удалось сохранить черновик' }
 }
@@ -707,6 +708,7 @@ function applyDraftForRoom(roomId) {
   submitForm.language = stored?.language || 'python'
   draftStatus.value = stored ? 'Черновик восстановлен' : 'Автосохранение на устройстве'
   draftRoomId.value = String(roomId)
+  canRestoreDraft.value = Boolean(stored?.backup)
 }
 
 function updateSubmitCode(nextCode) {
@@ -717,8 +719,33 @@ function updateSubmitCode(nextCode) {
 }
 
 function updateSubmitLanguage(language) {
-  submitForm.language = language
+  if (!['python', 'cpp'].includes(language) || language === submitForm.language) return
   if (myRoom.room_id) writeRoomDraft(myRoom.room_id, submitForm.source_code)
+  const stored = readRoomDraft(myRoom.room_id)
+  submitForm.language = language
+  submitForm.source_code = stored?.drafts?.[language] ?? ''
+  if (myRoom.room_id) writeRoomDraft(myRoom.room_id, submitForm.source_code)
+}
+
+async function restoreSubmission(submission) {
+  if (!myRoom.room_id || roomData.task?.id !== submission.taskId) return
+  if (!['python', 'cpp'].includes(submission.language) || typeof submission.source_code !== 'string') return
+  const key = draftStorageKey(myRoom.room_id)
+  const stored = readRoomDraft(myRoom.room_id) || {}
+  const backup = normalizeDraft({ ...stored, source_code: submitForm.source_code, language: submitForm.language })
+  const restored = normalizeDraft({ ...submission, drafts: submission.drafts || stored.drafts })
+  try { localStorage.setItem(key, JSON.stringify({ version: 3, ...restored, backup })) } catch { notify('Не удалось сохранить резервный черновик. Восстановление отменено.', 'warning'); return }
+  submitForm.language = submission.language
+  submitForm.source_code = submission.source_code
+  draftStatus.value = 'Черновик восстановлен'
+  canRestoreDraft.value = true
+  await router.push(isTeacher.value ? '/play' : '/')
+  notify('Код восстановлен. Предыдущий черновик можно вернуть в редакторе.', 'info')
+}
+
+function restorePreviousDraft() {
+  const stored = readRoomDraft(myRoom.room_id)
+  if (stored?.backup) restoreSubmission({ ...stored.backup, taskId: roomData.task?.id })
 }
 
 async function devLogin() {
@@ -786,7 +813,7 @@ async function logout() {
   roomData.status = null
   roomData.participants = []
   roomData.task = null
-  roomData.grace = null
+  roomData.leader = null
   roomData.round = null
   roomData.mySubmission = null
   submitForm.source_code = DEFAULT_ROOM_SOURCE_CODE
@@ -795,8 +822,11 @@ async function logout() {
   opponentActivity.value = null
   streak.value = 0
   bestStreak.value = 0
-  roundOverlay.visible = false
-  clearGraceRefreshTimer()
+  resetBattleEvents()
+  seenRoundEvents.clear()
+  observedMatches.clear()
+  leaderboardBattleId = null
+  canRestoreDraft.value = false
   selectedBattleRoomLog.value = null
   recheckingSubmissionIds.value = []
   initialSyncDone.value = true
@@ -964,21 +994,26 @@ async function loadQueue(battleId = selectedBattleId.value) {
 
 async function loadLeaderboard(battleId = selectedBattleId.value) {
   if (!battleId) return
+  const epoch = sessionEpoch
   const meId = me.value?.id
   const previousPoints = meId ? leaderboardPointsMemo[`${battleId}:${meId}`] : null
+  const previousLeader = leaderboardBattleId === battleId ? leaderboard.participants[0]?.user_id : null
+  const previousPlace = leaderboard.participants.findIndex(p => p.user_id === meId) + 1
   const { data } = await api.get(`/battles/${battleId}/leaderboard`)
+  if (epoch !== sessionEpoch || me.value?.id !== meId) return
   leaderboard.participants = data.participants || []
+  leaderboardBattleId = battleId
   if (meId) {
     const current = leaderboard.participants.find((p) => p.user_id === meId)
     const currentPoints = Number(current?.season_points ?? 0)
     leaderboardPointsMemo[`${battleId}:${meId}`] = currentPoints
     if (showPlayerUi.value && Number.isFinite(previousPoints) && currentPoints > previousPoints) {
       const delta = currentPoints - previousPoints
-      notify(`Бонус: +${delta} очк.`, 'bonus', {
-        burst: true,
-        intensity: delta >= 3 ? 'high' : 'normal',
-        banner: `+${delta} ОЧКОВ`
-      })
+      notify(`Начислено +${delta} очков`, 'info', { silent: true })
+    }
+    const leader = leaderboard.participants[0]
+    if (showPlayerUi.value && previousLeader && leader?.user_id === meId && previousLeader !== meId) {
+      if (!isPersonalResults.value) showRoundOverlay({ title: 'Новый лидер', subtitle: 'Вы вышли на первое место', positionText: `${previousPlace} → 1`, kind: 'leader', sound: 'success' })
     }
   }
 }
@@ -1060,11 +1095,10 @@ async function loadCurrentRoom() {
   roomData.status = roomRes.data.status
   roomData.participants = roomRes.data.participants || []
   roomData.task = roomRes.data.task || null
-  roomData.grace = roomRes.data.grace || null
+  roomData.leader = roomRes.data.leader || null
   roomData.round = roomRes.data.round || null
   roomData.mySubmission = roomRes.data.my_submission || null
   isSubmissionChecking.value = roomData.mySubmission?.verdict === 'queued'
-  scheduleGraceRefresh()
   subscribeSocket()
 }
 
@@ -1076,7 +1110,7 @@ async function submitCode() {
   try {
     await api.post(`/rooms/${myRoom.room_id}/submit`, submitForm)
     await syncData()
-    notify('Решение отправлено на проверку', 'success')
+    notify('Решение отправлено на проверку', 'info')
   } catch (error) {
     const isPendingConflict = error?.response?.status === 409
       && error?.response?.data?.error?.message === 'Previous submission is still being checked'
@@ -1087,12 +1121,12 @@ async function submitCode() {
 
 async function surrenderRound() {
   if (!myRoom.room_id) return
-  const confirmed = window.confirm('Сдаться в этом раунде и перейти к следующему?')
+  const confirmed = window.confirm('Сдаться и вернуться в лобби? Продолжить эту задачу в раунде уже не получится. Соперники смогут дорешать.')
   if (!confirmed) return
   try {
     await api.post(`/rooms/${myRoom.room_id}/surrender`)
-    notify('Вы сдались. Ожидаем следующий раунд.', 'warning')
-    await loadCurrentRoom()
+    notify('Вы сдались. Можно готовиться к следующему раунду.', 'warning')
+    await syncData()
   } catch {
     notify('Сдаться сейчас нельзя', 'warning')
   }
@@ -1133,13 +1167,13 @@ async function syncSnapshot() {
   studentJoinedBattleId.value = data.battle_id
   myRoom.room_id = data.room_id
   myRoom.match_id = data.match_id
+  if (data.match_id) observedMatches.add(String(data.match_id))
   myRoom.battle_id = data.battle_id
   if (data.room_id) await loadCurrentRoom()
   else {
     roomData.task = null
     roomData.mySubmission = null
     isSubmissionChecking.value = false
-    clearGraceRefreshTimer()
     if (data.battle_id) await Promise.all([loadQueue(), loadLeaderboard()])
     else { queue.entries = []; queue.meta = null; leaderboard.participants = [] }
   }
@@ -1339,6 +1373,9 @@ async function removeSelectedPackageTask() {
 }
 
 onMounted(async () => {
+  window.addEventListener('pointerdown', unlockAudio, { once: true, passive: true })
+  window.addEventListener('keydown', unlockAudio, { once: true })
+  if (window.matchMedia) { motionMedia = window.matchMedia('(prefers-reduced-motion: reduce)'); updateMotionPreference(); motionMedia.addEventListener?.('change', updateMotionPreference) }
   bindUnloadHandlers()
   document.addEventListener('visibilitychange', refreshOnFocus)
   window.addEventListener('online', refreshOnFocus)
@@ -1465,13 +1502,35 @@ watch(
 )
 
 onUnmounted(() => {
+  window.removeEventListener('pointerdown', unlockAudio)
+  window.removeEventListener('keydown', unlockAudio)
+  motionMedia?.removeEventListener?.('change', updateMotionPreference)
+  audioCtx?.close().catch(() => {})
   clearInterval(refreshTimer)
   clearTimeout(eventSyncTimer)
   document.removeEventListener('visibilitychange', refreshOnFocus)
   window.removeEventListener('online', refreshOnFocus)
   window.removeEventListener('gcb-ui-error', reportUiError)
-  clearGraceRefreshTimer()
   unbindUnloadHandlers()
   if (socket) socket.disconnect()
+})
+
+watch(isPersonalResults, value => { if (value) resetBattleEvents() })
+watch(() => me.value?.id, (value, previous) => { if (previous && value !== previous) resetBattleEvents() })
+
+watch(lastResult, result => {
+  if (!showPlayerUi.value || !result) return
+  const key = `${result.match_id}:${result.is_final ? 'final' : 'first'}:${result.result_type}`
+  if (seenRoundEvents.has(key)) return
+  seenRoundEvents.add(key)
+  if (seenRoundEvents.size > 200) seenRoundEvents.delete(seenRoundEvents.values().next().value)
+  if (!initialSyncDone.value || isPersonalResults.value || !observedMatches.has(String(result.match_id))) return
+  if (!result.is_final) {
+    if (result.result_type === 'win') { showRoundOverlay({ title: 'Вы решили первым', subtitle: 'Остальные дорешивают. Итоговые очки и рейтинг — после раунда.', kind: 'first', group: `round:${result.match_id}`, sound: 'first' }) }
+    return
+  }
+  showRoundOverlay({ title: result.result_type === 'win' ? 'Победа' : result.result_type === 'draw' ? 'Ничья' : 'Раунд завершён', subtitle: result.surrender_bonus ? `${result.task_title} · +${result.surrender_bonus} за решение после сдачи соперника` : result.task_title, points: result.points,
+    deltaText: result.rating_delta != null ? `Рейтинг ${result.rating_delta >= 0 ? '+' : ''}${result.rating_delta} Elo` : '',
+    streakText: streak.value > 1 ? `Серия: ${streak.value} победы подряд` : '', kind: 'final', group: `round:${result.match_id}`, sound: result.result_type === 'win' ? 'bonus' : 'round_end' })
 })
 </script>

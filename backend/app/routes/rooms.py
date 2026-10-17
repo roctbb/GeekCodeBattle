@@ -1,5 +1,5 @@
 import json
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from urllib.parse import urlparse
 
 from flask import Blueprint, request, session, current_app
@@ -11,10 +11,13 @@ from ..auth import login_required
 from ..auth import current_user
 from ..access import can_read_room, can_read_battle
 from ..services import rooms_service, realtime_service
-from ..services.scoring_service import get_winner_info, try_finalize_after_submission
+from ..services.scoring_service import (get_winner_info, try_finalize_after_submission,
+    surrender_available_at, return_to_lobby, SURRENDER_SOLVE_BONUS)
 from ..services.matchmaker_service import run_matchmaking
 from ..services.test_visibility import task_tests, is_hidden, has_hidden_tests, hidden_test_feedback
 from ..extensions import db
+from ..models import CodeRun, Match
+from ..services.rooms_service import _as_utc
 
 
 rooms_bp = Blueprint("rooms", __name__, url_prefix="/api/v1")
@@ -258,44 +261,29 @@ def get_room(room_id):
                     }
                 )
 
-    round_info = {"started_at": None, "deadline_at": None, "seconds_left": 0, "is_active": False, "duration_minutes": int(current_app.config.get("ROUND_DURATION_MINUTES", 20))}
-    if room.started_at is not None and match and match.finished_at is None:
-        round_started_at = room.started_at
-        if round_started_at.tzinfo is None:
-            round_started_at = round_started_at.replace(tzinfo=timezone.utc)
-        round_deadline = round_started_at + timedelta(minutes=round_info["duration_minutes"])
-        round_seconds_left = max(0, int((round_deadline - datetime.now(timezone.utc)).total_seconds()))
-        round_info = {
-            "started_at": round_started_at.isoformat(),
-            "deadline_at": round_deadline.isoformat(),
-            "seconds_left": round_seconds_left,
-            "is_active": round_seconds_left > 0,
-            "duration_minutes": round_info["duration_minutes"],
-        }
-
-    winner_info = {"winner_student_id": None, "winner_name": None, "deadline_at": None, "seconds_left": 0, "is_active": False, "can_surrender": False}
-    if match and match.finished_at is None and participants:
-        participant_rows = [p for p, _ in participants]
-        winner, winner_ts, _ = get_winner_info(participant_rows)
-        if winner is not None and winner_ts is not None:
-            deadline = winner_ts + timedelta(minutes=int(current_app.config.get("POST_WIN_GRACE_MINUTES", 5)))
-            now = datetime.now(timezone.utc)
-            seconds_left = max(0, int((deadline - now).total_seconds()))
-            me_row = next((p for p, _ in participants if str(p.student_id) == str(session["user_id"])), None)
-            can_surrender = bool(
-                me_row
-                and str(me_row.student_id) != str(winner.student_id)
-                and me_row.result_type != "loss"
-            )
-            winner_user = next((u for p, u in participants if str(p.student_id) == str(winner.student_id)), None)
-            winner_info = {
-                "winner_student_id": str(winner.student_id),
-                "winner_name": winner_user.name if winner_user else None,
-                "deadline_at": deadline.isoformat(),
-                "seconds_left": seconds_left,
-                "is_active": seconds_left > 0,
-                "can_surrender": can_surrender and seconds_left > 0,
-            }
+    now = datetime.now(timezone.utc)
+    active = bool(match and match.finished_at is None)
+    preparing = bool(active and room.started_at and _as_utc(room.started_at) > now)
+    me_row = next((p for p, _ in participants if str(p.student_id) == str(session["user_id"])), None)
+    available_at = surrender_available_at(room)
+    round_info = {
+        "started_at": _as_utc(room.started_at).isoformat() if room.started_at else None,
+        "server_now": now.isoformat(),
+        "is_active": active and not preparing,
+        "is_preparing": preparing,
+        "surrender_available_at": available_at.isoformat() if available_at else None,
+        "can_surrender": bool(active and me_row and me_row.accepted_at is None
+                              and me_row.surrendered_at is None and me_row.result_type != "loss"
+                              and available_at and now >= available_at),
+        "surrender_solve_bonus": SURRENDER_SOLVE_BONUS,
+    }
+    winner_info = {"winner_student_id": None, "winner_name": None}
+    if active and participants:
+        winner, _, _ = get_winner_info([p for p, _ in participants])
+        if winner is not None:
+            winner_user = next((u for p, u in participants if p.student_id == winner.student_id), None)
+            winner_info = {"winner_student_id": str(winner.student_id),
+                           "winner_name": winner_user.name if winner_user else None}
 
     return ok(
         {
@@ -311,7 +299,7 @@ def get_room(room_id):
                 "difficulty": task.difficulty,
                 "public_tests": public_tests,
             }
-            if task
+            if task and not preparing
             else None,
             "participants": [
                 {
@@ -321,14 +309,16 @@ def get_room(room_id):
                 }
                 for p, u in participants
             ],
-            "grace": winner_info,
+            "leader": winner_info,
             "round": round_info,
             "my_submission": {
                 "id": str(latest_submission.id),
                 "verdict": latest_submission.verdict,
-                "created_at": latest_submission.created_at.isoformat() if latest_submission.created_at else None,
+                "created_at": _as_utc(latest_submission.created_at).isoformat() if latest_submission.created_at else None,
                 "checker_status": latest_submission.checker_status_raw,
                 "checker_message": checker_feedback_text,
+                "source_code": latest_submission.source_code,
+                "language": latest_submission.language,
             }
             if latest_submission
             else None,
@@ -378,6 +368,8 @@ def submit(room_id):
     participant = rooms_service.get_match_participant(match.id, session["user_id"])
     if not participant:
         return fail("Not a participant of this match", 403)
+    if room.started_at and _as_utc(room.started_at) > datetime.now(timezone.utc):
+        return fail("Round has not started yet", 409)
     if participant and (participant.accepted_at is not None or participant.result_type == "loss"):
         return fail("Round is already finished for you", 409)
     latest_submission = rooms_service.get_latest_submission(match.id, session["user_id"])
@@ -423,6 +415,137 @@ def submit(room_id):
     return ok({"submission_id": str(submission.id), "status": "queued", "external": external}, 202)
 
 
+def _practice_timeout():
+    return max(1, int(current_app.config.get("SUBMISSION_CHECK_TIMEOUT_SECONDS", 180) or 180))
+
+
+def _practice_message(raw, depth=0):
+    if raw is None or depth > 6:
+        return None
+    if isinstance(raw, str):
+        try:
+            parsed = json.loads(raw)
+        except (ValueError, TypeError):
+            return raw.strip()[:4000] or None
+        if parsed != raw:
+            return _practice_message(parsed, depth + 1)
+        return raw.strip()[:4000] or None
+    if isinstance(raw, dict):
+        for key in ("comment", "message", "error", "stderr", "compile_error", "runtime_error", "traceback", "details", "tests", "visible_tests"):
+            message = _practice_message(raw.get(key), depth + 1)
+            if message:
+                return message
+    if isinstance(raw, list):
+        messages = [_practice_message(item, depth + 1) for item in raw[:3]]
+        return "\n\n".join(message for message in messages if message)[:4000] or None
+    return None
+
+
+def _run_out(run):
+    from types import SimpleNamespace
+    feedback = SimpleNamespace(checker_comment_raw=run.checker_comment_raw,
+                               visible_tests_total=None, visible_tests_passed=None)
+    results = _extract_visible_test_results(feedback, run.tests)
+    message = _practice_message(run.checker_comment_raw)
+    if not message and run.verdict == "internal_error":
+        message = "Не удалось выполнить код. Повторите запуск."
+    return {"id": str(run.id), "kind": run.kind, "verdict": run.verdict, "created_at": _as_utc(run.created_at).isoformat(), "timeout_seconds": _practice_timeout(),
+            "language": run.language, "source_code": run.source_code,
+            "message": message,
+            "tests": [{"input": t["input"], "expected": t.get("expected") if run.kind == "examples" else None,
+                       "actual": results[i].get("actual") if i < len(results) else None,
+                       "passed": results[i].get("passed") if i < len(results) and run.kind == "examples" else None}
+                      for i, t in enumerate(run.tests)]}
+
+
+@rooms_bp.post("/rooms/<room_id>/runs")
+@login_required
+def create_run(room_id):
+    try:
+        room = rooms_service.get_room_or_none(room_id)
+    except (ValueError, TypeError, AttributeError):
+        return fail("Not found", 404)
+    if not room:
+        return fail("Not found", 404)
+    match = rooms_service.get_last_match(room.id)
+    participant = rooms_service.get_match_participant(match.id, session["user_id"]) if match else None
+    if not match or not participant:
+        return fail("Forbidden", 403)
+    match = Match.query.filter_by(id=match.id).with_for_update().populate_existing().first()
+    now = datetime.now(timezone.utc)
+    if match.finished_at:
+        return fail("Round is already finished", 409)
+    if participant.accepted_at is not None or participant.result_type == "loss":
+        return fail("Round is already finished", 409)
+    if room.started_at and _as_utc(room.started_at) > now:
+        return fail("Round has not started yet", 409)
+    data = request.get_json() or {}
+    if not isinstance(data, dict):
+        return fail("Run must be an object", 400)
+    code, language, kind = data.get("source_code"), data.get("language"), data.get("kind", "examples")
+    if (not isinstance(code, str) or not code.strip() or not isinstance(language, str)
+            or language not in VALID_LANGUAGES or not isinstance(kind, str) or kind not in {"examples", "custom"}):
+        return fail("Invalid run: code, language and kind are required", 400)
+    if len(code.encode("utf-8")) > 256 * 1024:
+        return fail("source_code is too large", 413)
+    task = rooms_service.get_task_for_match(match)
+    if kind == "custom":
+        stdin = data.get("input", "")
+        if not isinstance(stdin, str) or len(stdin.encode("utf-8")) > 64 * 1024:
+            return fail("Input must be text up to 64 KiB", 400)
+        tests = [{"input": stdin, "expected": ""}]
+    else:
+        tests = [{"input": str(t.get("input", "")), "expected": str(t.get("expected", ""))}
+                 for t in task_tests(task) if isinstance(t, dict) and not is_hidden(t)]
+        if not tests:
+            return fail("No public examples available", 400)
+    runs = CodeRun.query.filter_by(match_id=match.id, student_id=current_user().id)
+    latest = runs.order_by(CodeRun.created_at.desc()).with_for_update().populate_existing().first()
+    if latest and latest.verdict == "queued":
+        if (now - _as_utc(latest.created_at)).total_seconds() < _practice_timeout():
+            return fail("Previous run is still being checked", 409, details={"run_id": str(latest.id)})
+        latest.verdict = "internal_error"
+        latest.checker_comment_raw = "Проверяющая система не ответила. Повторите запуск."
+    if runs.count() >= 100:
+        return fail("Practice limit reached: 100 runs per round", 429)
+    run = CodeRun(match_id=match.id, student_id=current_user().id, language=language,
+                  source_code=code, kind=kind, tests=tests)
+    db.session.add(run)
+    db.session.commit()
+    try:
+        # Only explicitly public examples or the user's input reach this checker job.
+        external = rooms_service.submit_for_check(callback_url=_callback_base_url() + "/api/v1/integrations/geekpaste/run-callback",
+            callback_id=str(run.id), code=code, lang=language, task_text="", check_type="tests", check_config={"tests": tests})
+        run.external_run_id = external.get("job_id")
+        db.session.commit()
+    except Exception:
+        CodeRun.query.filter_by(id=run.id, verdict="queued").update({"verdict": "internal_error",
+            "checker_comment_raw": "Не удалось запустить код. Повторите попытку."}, synchronize_session=False)
+        db.session.commit()
+        db.session.refresh(run)
+    return ok(_run_out(run), 202)
+
+
+@rooms_bp.get("/rooms/<room_id>/runs/<run_id>")
+@login_required
+def get_run(room_id, run_id):
+    from ..utils import as_uuid
+    try:
+        run = CodeRun.query.filter_by(id=as_uuid(run_id)).with_for_update().populate_existing().first()
+    except (ValueError, TypeError, AttributeError):
+        return fail("Not found", 404)
+    if not run or str(run.student_id) != str(session["user_id"]):
+        return fail("Not found", 404)
+    match = db.session.get(Match, run.match_id)
+    if not match or str(match.room_id) != room_id:
+        return fail("Not found", 404)
+    if run.verdict == "queued" and (datetime.now(timezone.utc) - _as_utc(run.created_at)).total_seconds() >= _practice_timeout():
+        run.verdict = "internal_error"
+        run.checker_comment_raw = "Проверяющая система не ответила. Повторите запуск."
+        db.session.commit()
+    return ok(_run_out(run))
+
+
 @rooms_bp.post("/rooms/<room_id>/surrender")
 @login_required
 def surrender(room_id):
@@ -436,25 +559,24 @@ def surrender(room_id):
     if not match or match.finished_at is not None:
         return fail("No active match", 400)
 
-    participants = rooms_service.list_match_participants(match.id)
-    winner, _, _ = get_winner_info(participants)
-    if winner is None:
-        return fail("Cannot surrender before first winner", 400)
-    if try_finalize_after_submission(match):
-        db.session.refresh(match)
-        _emit_finalize_side_effects(match, room.battle_id)
-        return fail("Round is already finished", 409)
-
+    # The same ledger lock also serializes checker acceptance and surrender.
     me = rooms_service.get_match_participant(match.id, session["user_id"])
     if not me:
         return fail("Not a participant of this match", 403)
-    if str(me.student_id) == str(winner.student_id):
-        return fail("Winner cannot surrender", 400)
-    if me.result_type == "loss":
+    if me.surrendered_at is not None or me.result_type == "loss":
         return ok({"status": "already_surrendered"})
+    if me.accepted_at is not None:
+        return fail("Accepted participant cannot surrender", 409)
+    available_at = surrender_available_at(room)
+    now = datetime.now(timezone.utc)
+    if available_at is None or now < available_at:
+        return fail("Surrender is available after 10 minutes", 409)
 
+    me.surrendered_at = now
     me.result_type = "loss"
+    return_to_lobby(room.battle_id, [me], match.id)
     db.session.commit()
+    realtime_service.emit_queue_updated(room.battle_id, {"battle_id": str(room.battle_id)})
 
     realtime_service.emit_submission_verdict(
         match.id,

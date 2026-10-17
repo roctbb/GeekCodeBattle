@@ -10,6 +10,9 @@ from ..models import Match, MatchParticipant, Room, User, ScoreEvent, RatingHist
 
 K_FACTOR = 24
 INSTANT_WIN_REASON = "match_instant_win"
+SURRENDER_BONUS_REASON = "match_surrender_solve_bonus"
+SURRENDER_AFTER_SECONDS = 10 * 60
+SURRENDER_SOLVE_BONUS = 20
 
 
 def lock_scoring():
@@ -84,6 +87,39 @@ def _apply_streaks(user: User, result_type: str):
         user.loss_streak = 0
 
 
+def surrender_available_at(room: Room):
+    return _as_utc(room.started_at) + timedelta(seconds=SURRENDER_AFTER_SECONDS) if room.started_at else None
+
+
+def solve_after_surrender_bonus(participant, participants):
+    accepted_at = _as_utc(participant.accepted_at)
+    if accepted_at is None or participant.surrendered_at is not None:
+        return 0
+    return SURRENDER_SOLVE_BONUS if any(
+        p.student_id != participant.student_id and p.surrendered_at is not None
+        and _as_utc(p.surrendered_at) <= accepted_at for p in participants
+    ) else 0
+
+
+def return_to_lobby(battle_id, participants, match_id):
+    """An older round finishing must not disturb a player's newer room or readiness."""
+    from ..models import Battle
+    battle = db.session.get(Battle, battle_id)
+    if not battle or battle.status != "running":
+        return
+    for p in participants:
+        other_active = (db.session.query(MatchParticipant.id)
+            .join(Match, Match.id == MatchParticipant.match_id)
+            .join(Room, Room.id == Match.room_id)
+            .filter(MatchParticipant.student_id == p.student_id, Match.id != match_id,
+                    Match.finished_at.is_(None), Room.status == "active",
+                    MatchParticipant.accepted_at.is_(None), MatchParticipant.surrendered_at.is_(None),
+                    db.or_(MatchParticipant.result_type.is_(None), MatchParticipant.result_type != "loss"))
+            .first())
+        if not other_active and not QueueEntry.query.filter_by(battle_id=battle_id, user_id=p.student_id).first():
+            db.session.add(QueueEntry(battle_id=battle_id, user_id=p.student_id, is_ready=False))
+
+
 def _resolve_results(participants: list[MatchParticipant], finished_by: str):
     if finished_by == "timeout":
         for p in participants:
@@ -99,11 +135,11 @@ def _resolve_results(participants: list[MatchParticipant], finished_by: str):
             p.place = idx
         return
 
-    accepted = [p for p in participants if p.accepted_at is not None]
+    accepted = [p for p in participants if p.accepted_at is not None and p.surrendered_at is None]
     if accepted:
-        accepted.sort(key=lambda p: p.accepted_at)
-        leader_ts = accepted[0].accepted_at
-        leaders = [p for p in accepted if p.accepted_at == leader_ts]
+        accepted.sort(key=lambda p: _as_utc(p.accepted_at))
+        leader_ts = _as_utc(accepted[0].accepted_at)
+        leaders = [p for p in accepted if _as_utc(p.accepted_at) == leader_ts]
         if len(leaders) == 1:
             leaders[0].result_type = "win"
             for p in participants:
@@ -113,12 +149,16 @@ def _resolve_results(participants: list[MatchParticipant], finished_by: str):
             for p in participants:
                 p.result_type = "draw" if p in leaders else "loss"
     else:
-        max_progress = max(float(p.progress or 0) for p in participants) if participants else 0
-        if max_progress == 0 and finished_by in {"all_disconnected"}:
+        contenders = [p for p in participants if p.surrendered_at is None]
+        max_progress = max((float(p.progress or 0) for p in contenders), default=0)
+        if not contenders:
+            for p in participants:
+                p.result_type = "loss"
+        elif max_progress == 0 and finished_by in {"all_disconnected"}:
             for p in participants:
                 p.result_type = "no_result"
         else:
-            leaders = [p for p in participants if float(p.progress or 0) == max_progress]
+            leaders = [p for p in contenders if float(p.progress or 0) == max_progress]
             if len(leaders) == len(participants):
                 for p in participants:
                     p.result_type = "draw"
@@ -131,7 +171,7 @@ def _resolve_results(participants: list[MatchParticipant], finished_by: str):
         participants,
         key=lambda p: (
             -RESULT_ORDER.get(p.result_type or "no_result", 0),
-            p.accepted_at or datetime.max.replace(tzinfo=timezone.utc),
+            _as_utc(p.accepted_at) or datetime.max.replace(tzinfo=timezone.utc),
             -float(p.progress or 0),
         ),
     )
@@ -140,30 +180,14 @@ def _resolve_results(participants: list[MatchParticipant], finished_by: str):
 
 
 def get_winner_info(participants: list[MatchParticipant]):
-    accepted = [p for p in participants if p.accepted_at is not None]
+    accepted = [p for p in participants if p.accepted_at is not None and p.surrendered_at is None]
     if not accepted:
         return None, None, None
-    accepted.sort(key=lambda p: p.accepted_at)
+    accepted.sort(key=lambda p: _as_utc(p.accepted_at))
     winner_ts = _as_utc(accepted[0].accepted_at)
     winners = [p for p in accepted if _as_utc(p.accepted_at) == winner_ts]
     winner = winners[0] if len(winners) == 1 else None
     return winner, winner_ts, winners
-
-
-def get_grace_minutes() -> int:
-    return int(current_app.config.get("POST_WIN_GRACE_MINUTES", 5))
-
-
-def get_grace_deadline(participants: list[MatchParticipant]):
-    winner, winner_ts, _ = get_winner_info(participants)
-    if winner is None or winner_ts is None:
-        return None
-    return winner_ts + timedelta(minutes=get_grace_minutes())
-
-
-def _is_non_winner_resolved(p: MatchParticipant):
-    # `result_type=loss` is used as explicit surrender marker before finalization.
-    return p.accepted_at is not None or (p.result_type == "loss")
 
 
 def try_finalize_after_submission(match: Match):
@@ -175,25 +199,9 @@ def try_finalize_after_submission(match: Match):
         finalize_match(match, finished_by="accepted")
         return True
 
-    winner, winner_ts, winners = get_winner_info(participants)
-    if winner_ts is None:
-        return False
-
-    # Simultaneous accepts are treated as immediate draw resolution.
-    if len(winners) > 1:
-        finalize_match(match, finished_by="accepted")
-        return True
-
-    all_resolved = all((p.student_id == winner.student_id) or _is_non_winner_resolved(p) for p in participants)
-    grace_deadline = winner_ts + timedelta(minutes=get_grace_minutes())
-    now = datetime.now(timezone.utc)
-
+    all_resolved = all(p.accepted_at is not None or p.surrendered_at is not None or p.result_type == "loss" for p in participants)
     if all_resolved:
-        finalize_match(match, finished_by="accepted")
-        return True
-
-    if now >= grace_deadline:
-        finalize_match(match, finished_by="accepted_grace_timeout")
+        finalize_match(match, finished_by="accepted" if any(p.accepted_at for p in participants) else "surrendered")
         return True
 
     return False
@@ -324,16 +332,7 @@ def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) 
 
         battle_id = room.battle_id if room else None
         if battle_id is not None:
-            from ..models import Battle
-
-            battle = db.session.get(Battle, battle_id)
-            if battle and battle.status == "running":
-                for p in participants:
-                    existing = QueueEntry.query.filter_by(battle_id=battle.id, user_id=p.student_id).first()
-                    if not existing:
-                        db.session.add(QueueEntry(battle_id=battle.id, user_id=p.student_id, is_ready=False))
-                    else:
-                        existing.is_ready = False
+            return_to_lobby(battle_id, participants, locked_match.id)
 
         current_app.logger.warning(
             "finalize_match_idempotent_skip match_id=%s finished_by=%s",
@@ -422,6 +421,12 @@ def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) 
                 reason=f"match_finalize:{p.result_type}",
             )
         )
+        surrender_bonus = solve_after_surrender_bonus(p, participants)
+        if surrender_bonus:
+            user.season_points += surrender_bonus
+            db.session.add(ScoreEvent(match_id=locked_match.id, student_id=user.id,
+                                      points_delta=surrender_bonus, rating_delta=0,
+                                      reason=SURRENDER_BONUS_REASON))
 
     locked_match.finished_by = finished_by
     locked_match.finished_at = datetime.now(timezone.utc)
@@ -436,16 +441,7 @@ def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) 
     # Keep players in lobby after round finish: they must press "Ready" again.
     battle_id = room.battle_id if room else None
     if battle_id is not None:
-        from ..models import Battle
-
-        battle = db.session.get(Battle, battle_id)
-        if battle and battle.status == "running":
-            for p in participants:
-                existing = QueueEntry.query.filter_by(battle_id=battle.id, user_id=p.student_id).first()
-                if not existing:
-                    db.session.add(QueueEntry(battle_id=battle.id, user_id=p.student_id, is_ready=False))
-                else:
-                    existing.is_ready = False
+        return_to_lobby(battle_id, participants, locked_match.id)
 
     db.session.commit() if commit else db.session.flush()
     return locked_match

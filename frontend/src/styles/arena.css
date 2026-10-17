@@ -1,0 +1,660 @@
+:root {
+  color-scheme: dark;
+  --app-font-heading: 'Manrope', 'Segoe UI', sans-serif;
+  --app-bg: #101215;
+  --app-bg-soft: #14171b;
+  --app-card: #1b1f23;
+  --app-ink: #eeede7;
+  --app-muted: #adb4bb;
+  --app-border: #3d403e;
+  --app-brand: #d9b678;
+  --app-brand-strong: #efd09a;
+  --app-accent: #8dcbdc;
+  --app-fire: #e99b69;
+  --app-ice: #8dcbdc;
+  --bs-body-bg: var(--app-bg);
+  --bs-body-color: var(--app-ink);
+  --bs-border-color: var(--app-border);
+  --bs-secondary-color: var(--app-muted);
+  --bs-link-color: var(--app-brand);
+}
+body {
+  font-family:
+    'Manrope',
+    -apple-system,
+    BlinkMacSystemFont,
+    'Segoe UI',
+    sans-serif;
+  background: var(--app-bg);
+  color: var(--app-ink);
+}
+h1,
+h2,
+h3,
+.page-title {
+  font-family: var(--app-font-heading);
+  font-weight: 700;
+  letter-spacing: 0;
+}
+.brand-gold {
+  color: var(--app-brand);
+}
+.hero-eyebrow,
+.eyebrow {
+  color: var(--app-brand);
+  font-size: 11px;
+  letter-spacing: 0.11em;
+  text-transform: uppercase;
+}
+.app-shell {
+  background: var(--app-bg);
+  min-height: 100dvh;
+  padding-bottom: 64px;
+}
+.app-shell .app-topbar {
+  background: #151719;
+  border-top: 2px solid var(--app-brand);
+  border-bottom: 1px solid #504431;
+  box-shadow: none;
+}
+.app-shell .app-brand {
+  color: var(--app-ink);
+}
+.app-shell .topbar-links .nav-link[aria-current='page'] {
+  background: #353023;
+  color: var(--app-brand);
+}
+.app-shell .container.py-4 {
+  max-width: 1280px;
+}
+.app-shell .arena-container {
+  max-width: 1920px;
+  padding-top: 20px !important;
+}
+.app-shell .arena-container:has(.is-fullscreen) {
+  z-index: 1050;
+}
+.app-shell:has(.is-fullscreen) > .app-topbar {
+  visibility: hidden;
+}
+.app-shell .card {
+  background: var(--app-card);
+  border-radius: 5px;
+  box-shadow: none !important;
+}
+.app-shell .card-body {
+  background: transparent;
+}
+.app-shell
+  :is(
+    .soft-panel,
+    .elevated-panel,
+    .participant-tile,
+    .scoreboard-item,
+    .hero-metric,
+    .report-metrics article,
+    .invite-settings,
+    .submission-item > summary,
+    .empty-state,
+    .matchmaking-status,
+    .bonus-rules,
+    .battle-settings,
+    .battle-room-card
+  ) {
+  background: var(--app-card);
+  color: var(--app-ink);
+  border-color: var(--app-border);
+  border-radius: 5px;
+}
+.app-shell :is(.form-control, .form-select) {
+  background-color: #121619;
+  color: var(--app-ink);
+  border-color: #4b4e4b;
+}
+.app-shell .form-control::placeholder {
+  color: #919ba3;
+}
+.app-shell :is(.form-control, .form-select):focus {
+  border-color: var(--app-brand);
+  box-shadow: 0 0 0 3px #d9b67822;
+}
+.app-shell .btn {
+  border-radius: 3px;
+  font-weight: 500;
+}
+.app-shell .btn-primary {
+  background: var(--app-brand);
+  border-color: var(--app-brand);
+  color: #191610;
+  position: relative;
+}
+.app-shell .btn-primary:hover,
+.app-shell .btn-primary:focus-visible {
+  background: var(--app-brand-strong);
+  border-color: var(--app-brand-strong);
+  color: #191610;
+}
+.app-shell .btn-primary:disabled {
+  background: #70634a;
+  border-color: #70634a;
+  color: #e2d6bf;
+}
+.app-shell .btn-primary::before,
+.app-shell .btn-primary::after {
+  content: '';
+  position: absolute;
+  width: 5px;
+  height: 5px;
+  border: 1px solid #fff2cf;
+}
+.app-shell .btn-primary::before {
+  top: 2px;
+  left: 2px;
+  border-bottom: 0;
+  border-right: 0;
+}
+.app-shell .btn-primary::after {
+  bottom: 2px;
+  right: 2px;
+  border-top: 0;
+  border-left: 0;
+}
+.app-shell :is(.btn-outline-primary, .btn-outline-secondary) {
+  color: var(--app-ink);
+  border-color: #666354;
+}
+.app-shell :is(.btn-outline-primary, .btn-outline-secondary):hover {
+  background: #353128;
+  border-color: var(--app-brand);
+  color: var(--app-brand);
+}
+.app-shell .btn-link {
+  color: var(--app-brand);
+}
+.app-shell .text-primary {
+  color: var(--app-brand) !important;
+}
+.app-shell .text-success {
+  color: #a5d0b4 !important;
+}
+.app-shell .text-danger {
+  color: #f1a8ad !important;
+}
+.app-shell .text-warning {
+  color: var(--app-brand) !important;
+}
+.app-shell .badge.text-bg-light {
+  background: #292e32 !important;
+  color: var(--app-ink) !important;
+  border-color: var(--app-border) !important;
+}
+.app-shell .table {
+  --bs-table-color: var(--app-ink);
+  --bs-table-border-color: var(--app-border);
+  --bs-table-striped-bg: #ffffff04;
+  --bs-table-hover-bg: #d9b6780b;
+}
+.app-shell .table th {
+  color: var(--app-muted);
+}
+.app-shell
+  :is(.table-light, .report-table thead th, .matrix-table thead .matrix-name) {
+  --bs-table-bg: #22272b;
+  background: #22272b;
+  color: var(--app-muted);
+}
+.app-shell .matrix-table .matrix-name {
+  background: var(--app-card);
+}
+.app-shell .matrix-value {
+  background: #292f33;
+  color: #b2bac0;
+}
+.app-shell .matrix-value.solved,
+.app-shell .result-state.solved {
+  background: #254133;
+  color: #b2dbc1;
+}
+.app-shell
+  :is(
+    .matrix-value.attempted,
+    .matrix-value.unattempted,
+    .result-state.attempted,
+    .result-state.unattempted
+  ) {
+  background: #482c32;
+  color: #ecc0c4;
+}
+.app-shell .result-state {
+  background: #2c3237;
+  color: var(--app-muted);
+}
+.app-shell .result-state.pending {
+  background: #453c25;
+  color: #edcf95;
+}
+.app-shell .notice-warning {
+  background: #332d20;
+  border-color: #73603e;
+  color: #ead0a3;
+}
+.app-shell .round-summary {
+  background: linear-gradient(120deg, #30291e, #191d20);
+  border-color: #79603a;
+  border-left: 3px solid var(--app-brand);
+}
+.app-shell .result-points {
+  color: var(--app-brand);
+}
+.app-shell .report-metrics article {
+  border-top: 2px solid #8c6d3d;
+}
+.app-shell .report-metrics strong {
+  font-family: var(--app-font-heading);
+  color: var(--app-brand);
+  font-weight: 700;
+}
+.app-shell .presence-dot {
+  box-shadow: none;
+}
+.app-shell .presence-dot.online {
+  background: #9dceb1;
+}
+.app-shell .presence-dot.offline {
+  background: #d68b8e;
+}
+.app-shell .status-chip {
+  border-radius: 3px;
+}
+.app-shell :is(.status-draft, .status-finished, .status-pill) {
+  background: #302d27;
+  color: #dec594;
+  border-color: #61543d;
+}
+.app-shell :is(.status-lobby_open, .difficulty-medium, .status-stopped) {
+  background: #383022;
+  color: #e5c58c;
+  border-color: #695736;
+}
+.app-shell :is(.status-running, .difficulty-easy) {
+  background: #233b2e;
+  color: #afdabd;
+  border-color: #42644c;
+}
+.app-shell .difficulty-hard {
+  background: #452b31;
+  color: #efb0b8;
+  border-color: #78454e;
+}
+.app-shell :is(.markdown-text code, .code-like) {
+  color: #dfc28d;
+}
+.app-shell .markdown-text code {
+  background: #302d25;
+}
+.app-shell .markdown-text pre,
+.app-shell .checker-feedback {
+  background: #121619;
+  color: #d8dfe4;
+}
+.app-shell .solution-source {
+  background: #15191f;
+  color: #dce3e8;
+}
+.app-shell .markdown-text h1,
+.app-shell .markdown-text h2,
+.app-shell .markdown-text h3 {
+  font-family: 'Manrope', sans-serif;
+  letter-spacing: 0;
+}
+.app-shell .markdown-text {
+  color: #d9dde0;
+}
+.app-shell .catalog-list {
+  border-color: var(--app-border);
+}
+.app-shell .catalog-row:hover {
+  background: #d9b6780a;
+}
+.app-shell .role-hint {
+  background: #332d21;
+  color: var(--app-brand);
+  border-color: #73603f;
+}
+.app-shell.scene-entry .invite-page {
+  position: relative;
+  max-width: none;
+  min-height: 680px;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  padding: 40px 24px;
+  background:
+    linear-gradient(0deg, #101215 0%, #10121530 45%, #10121570 100%),
+    url('../assets/arena/temple.jpg') center 38% / cover;
+  border: 1px solid #554832;
+}
+.app-shell.scene-entry .invite-intro {
+  z-index: 1;
+  margin-bottom: 20px;
+  max-width: 520px;
+  text-shadow: 0 2px 24px #000;
+}
+.app-shell.scene-entry .invite-intro h1 {
+  font:
+    700 clamp(44px, 6vw, 72px)/1.08 var(--app-font-heading);
+  letter-spacing: 0;
+  text-transform: uppercase;
+}
+.app-shell.scene-entry .invite-intro .eyebrow {
+  color: #e0c38c;
+}
+.app-shell.scene-entry .invite-intro p.text-muted {
+  color: #d0d2d2 !important;
+  font-size: 13px;
+}
+.app-shell.scene-entry .invite-card {
+  width: 100%;
+  max-width: 440px;
+  z-index: 1;
+  background: #14181bf5;
+  border-color: #8c7249 !important;
+}
+.app-shell.scene-entry .invite-card .card-body {
+  padding: 24px !important;
+}
+.app-shell.scene-entry .invite-icon {
+  display: none;
+}
+.app-shell.scene-entry .invite-card h2 {
+  margin-top: 0 !important;
+}
+.app-shell.scene-entry .invite-results-link {
+  position: relative;
+  margin-top: 20px;
+  color: var(--app-brand);
+  font-size: 13px;
+}
+.app-shell .login-card {
+  border-top: 2px solid var(--app-brand) !important;
+  background:
+    linear-gradient(120deg, #1d2024ed, #16191dee),
+    url('../assets/arena/temple.jpg') center/cover;
+}
+.app-shell.scene-lobby .battle-shell {
+  border: 1px solid var(--app-border) !important;
+  background: #171b1e;
+}
+.app-shell.scene-lobby .joined-hero {
+  position: relative;
+  isolation: isolate;
+  border: 1px solid #6b5737;
+  background:
+    radial-gradient(ellipse at 50% 0, #6d502e3d, transparent 70%),
+    linear-gradient(130deg, #25251e, #1a2126);
+  border-radius: 3px;
+  padding: 24px;
+}
+.app-shell.scene-lobby .joined-hero::before,
+.app-shell.scene-lobby .joined-hero::after {
+  content: '';
+  position: absolute;
+  z-index: -1;
+  top: 0;
+  bottom: 15px;
+  width: 55px;
+  background: linear-gradient(90deg, #2d2519, #73533144, #2d2519);
+  clip-path: polygon(0 0, 100% 0, 100% 100%, 50% 88%, 0 100%);
+  border-inline: 1px solid #a2854a44;
+  opacity: 0.5;
+}
+.app-shell.scene-lobby .joined-hero::before {
+  right: 90px;
+}
+.app-shell.scene-lobby .joined-hero::after {
+  right: 20px;
+  background: linear-gradient(90deg, #19282d, #3d647544, #19282d);
+}
+.app-shell.scene-lobby .joined-eyebrow,
+.app-shell.scene-lobby .hero-metric-label {
+  color: var(--app-muted);
+}
+.app-shell.scene-lobby .hero-metric-value {
+  color: var(--app-brand);
+  font:
+    700 27px var(--app-font-heading);
+}
+.app-shell.scene-lobby .hero-metric {
+  background: #14191ac9;
+}
+.app-shell.scene-lobby .scoreboard-item {
+  border-left: 2px solid #667d83;
+}
+.app-shell.scene-lobby .scoreboard-item.is-me {
+  background: #332d21;
+  border-color: #a3834b;
+  box-shadow: none;
+}
+.app-shell .rank-badge {
+  background: #292922;
+  color: var(--app-brand);
+  border-color: #75613e;
+  border-radius: 3px;
+}
+.app-shell .progress {
+  background: #ffffff09;
+}
+.app-shell .progress-bar {
+  background: var(--app-brand);
+}
+.app-shell.scene-results .report-page-heading {
+  padding: 30px 24px;
+  border: 1px solid #6b5737;
+  border-bottom: 3px solid #917345;
+  background:
+    radial-gradient(ellipse at 50% -70%, #d9b67830, transparent 75%),
+    repeating-linear-gradient(
+      135deg,
+      transparent 0,
+      transparent 85px,
+      #d9b67806 86px,
+      #d9b67806 87px,
+      transparent 88px,
+      transparent 170px
+    ),
+    #191d20;
+  position: relative;
+}
+.app-shell.scene-results .report-page-heading::after {
+  content: '';
+  position: absolute;
+  bottom: -3px;
+  left: 35%;
+  width: 30%;
+  height: 8px;
+  clip-path: polygon(0 0, 100% 0, 90% 100%, 10% 100%);
+  background: #917345;
+}
+.app-shell.scene-results .report-page-heading h1 {
+  font-size: clamp(28px, 4vw, 42px);
+}
+.app-shell.scene-staff .catalog-heading,
+.app-shell.scene-staff .report-page-heading {
+  padding-bottom: 20px;
+  border-bottom: 1px solid #6c5938;
+}
+.app-shell
+  :is(
+    .room-meta,
+    .participant-name,
+    .log-title,
+    .score-value,
+    .battle-stat-value
+  ) {
+  color: var(--app-ink);
+}
+.app-shell
+  :is(
+    .room-log-card,
+    .match-log-card,
+    .submission-card,
+    .log-entry,
+    .rejudge-panel
+  ) {
+  background: var(--app-card);
+  border-color: var(--app-border);
+}
+.app-shell .experience-settings {
+  position: relative;
+  z-index: 1060;
+  font-size: 12px;
+}
+.experience-settings > summary {
+  display: flex;
+  align-items: center;
+  gap: 7px;
+  padding: 10px 14px;
+  list-style: none;
+  cursor: pointer;
+  background: #21262b;
+  border: 1px solid #75613f;
+  border-radius: 4px;
+  color: var(--app-brand);
+}
+.experience-settings-panel {
+  position: absolute;
+  top: calc(100% + 12px);
+  right: 0;
+  width: 245px;
+  background: #1b2024;
+  border: 1px solid var(--app-border);
+  padding: 16px;
+  display: grid;
+  gap: 14px;
+  box-shadow: 0 8px 24px #0008;
+}
+.experience-settings-panel label {
+  display: flex;
+  gap: 9px;
+  align-items: center;
+  flex-wrap: wrap;
+}
+.experience-settings-panel input[type='range'] {
+  width: 100%;
+}
+.experience-settings-panel .text-muted {
+  font-size: 11px;
+}
+.app-shell .toast-msg {
+  bottom: 70px;
+  background: #242c32;
+  color: var(--app-ink);
+  border: 1px solid #667079;
+  border-radius: 4px;
+}
+.app-shell .toast-success {
+  border-color: #739e81;
+}
+.app-shell .toast-warning {
+  border-color: #b29158;
+}
+.app-shell .toast-error {
+  border-color: #b1747d;
+}
+.app-shell .bonus-banner {
+  background: #332b1e;
+  color: #ead09e;
+  border: 1px solid #b69355;
+  border-radius: 3px;
+}
+.app-shell .streak-chip {
+  position: static;
+  display: none;
+}
+.app-shell .burst-dot {
+  background: #dfbc7e;
+  box-shadow: none;
+  border-radius: 0;
+}
+.scoreboard-move {
+  transition: transform 600ms cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+.app-shell .submit-toolbar {
+  position: sticky;
+  bottom: 0;
+  z-index: 30;
+  background: var(--app-bg);
+  border-top: 1px solid var(--app-border);
+}
+.app-shell :is(.overview-value, .task-statement-text) {
+  color: var(--app-ink);
+}
+.app-shell .overview-tile {
+  border-color: var(--app-border);
+  border-radius: 5px;
+}
+.app-shell :is(.overview-label, .round-eyebrow, .task-statement-label) {
+  color: var(--app-muted);
+}
+.app-shell
+  :is(.round-card, .task-statement, .participant-card, .submission-item) {
+  background: var(--app-card);
+  border-color: var(--app-border);
+}
+.app-shell .progress-track {
+  background: #ffffff0b;
+}
+.app-shell .code-details summary {
+  color: var(--app-brand);
+}
+.effects-off *,
+.effects-off *::before,
+.effects-off *::after {
+  animation: none !important;
+  transition: none !important;
+  scroll-behavior: auto !important;
+}
+@media (max-width: 650px) {
+  .app-shell.scene-entry .invite-page {
+    padding: 28px 16px;
+    min-height: 650px;
+    background-position: center;
+  }
+  .app-shell.scene-entry .invite-intro h1 {
+    font-size: 48px;
+  }
+  .app-shell.scene-lobby .joined-hero {
+    padding: 16px;
+  }
+  .app-shell .hero-metrics {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+  .app-shell.scene-results .report-page-heading {
+    padding: 22px 16px;
+  }
+  .experience-label {
+    display: none;
+  }
+  .app-shell .experience-settings > summary {
+    font-size: 11px;
+    padding: 9px 11px;
+  }
+  .app-shell .toast-msg {
+    right: 10px;
+    bottom: 62px;
+    max-width: calc(100vw - 20px);
+  }
+  .app-shell .topbar-links {
+    flex-wrap: wrap;
+  }
+}
+@media (prefers-reduced-motion: reduce) {
+  .scoreboard-move {
+    transition: none;
+  }
+  .match-countdown.animated {
+    animation: none !important;
+  }
+}

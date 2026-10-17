@@ -2,9 +2,36 @@ from flask import Blueprint, request, current_app
 
 from ..api.responses import ok, fail
 from ..services import integrations_service
+from ..extensions import db
+from ..models import CodeRun
+from ..utils import as_uuid
 
 
 integrations_bp = Blueprint("integrations", __name__, url_prefix="/api/v1/integrations")
+
+
+@integrations_bp.post("/geekpaste/run-callback")
+def code_run_callback():
+    error = integrations_service.verify_callback_auth(request.headers.get("Authorization", ""))
+    if error:
+        return fail("Callback authentication failed", 403 if error == "forbidden" else 401)
+    payload = request.get_json() or {}
+    if not isinstance(payload, dict) or not payload.get("callback_id"):
+        return fail("Missing callback_id", 400)
+    try:
+        run_id = as_uuid(payload["callback_id"])
+    except (ValueError, TypeError, AttributeError):
+        return fail("Invalid callback_id", 400)
+    run = CodeRun.query.filter_by(id=run_id).with_for_update().populate_existing().first()
+    if not run:
+        return fail("Run not found", 404)
+    if run.verdict != "queued":
+        return ok({"duplicate": True})
+    run.checker_status_raw = str(payload.get("status", "error"))
+    run.verdict = "completed" if run.checker_status_raw == "success" else "internal_error"
+    run.checker_comment_raw = integrations_service.checker_feedback_raw(payload)
+    db.session.commit()
+    return ok()
 
 
 @integrations_bp.post("/geekpaste/callback")

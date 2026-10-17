@@ -1,5 +1,6 @@
 """Battle-level progress and personal solution history. Never expose checker configuration."""
 from collections import defaultdict
+from datetime import datetime, timezone
 from sqlalchemy.orm import load_only
 import json
 
@@ -42,15 +43,22 @@ def submission_out(sub, match, task=None):
             'after_round': bool(match.finished_at and sub.created_at > match.finished_at)}
 
 
-def battle_report(battle, *, user_id=None, detail=False):
+def battle_report(battle, *, user_id=None, detail=False, hide_preparing=False):
     """Bounded query count for the matrix; only one student's detail contains source code."""
     members = db.session.query(BattleMember, User).join(User).filter(BattleMember.battle_id == battle.id)
     if user_id:
         members = members.filter(BattleMember.user_id == user_id)
     members = members.order_by(User.name, User.id).all()
     selected_ids = {u.id for _, u in members}
-    matches = {m.id: m for m in Match.query.join(Room).filter(Room.battle_id == battle.id).order_by(Match.created_at).all()}
+    match_query = Match.query.join(Room).filter(Room.battle_id == battle.id)
+    if hide_preparing:
+        match_query = match_query.filter(db.or_(Room.started_at.is_(None), Room.started_at <= datetime.now(timezone.utc), Match.finished_at.is_not(None)))
+    matches = {m.id: m for m in match_query.order_by(Match.created_at).all()}
     participants = MatchParticipant.query.filter(MatchParticipant.match_id.in_(matches), MatchParticipant.student_id.in_(selected_ids)).all()
+    round_numbers, round_counts = {}, defaultdict(int)
+    for p in sorted(participants, key=lambda p: (matches[p.match_id].created_at, str(p.match_id))):
+        round_counts[p.student_id] += 1
+        round_numbers[(p.student_id, p.match_id)] = round_counts[p.student_id]
     parts = defaultdict(list)
     for p in participants:
         parts[(p.student_id, matches[p.match_id].task_id)].append(p)
@@ -82,10 +90,13 @@ def battle_report(battle, *, user_id=None, detail=False):
     for sub in submissions:
         subs[(sub.student_id, matches[sub.match_id].task_id)].append(sub)
     points, ratings = defaultdict(int), defaultdict(int)
+    ledger, rating_changes = defaultdict(list), {}
     for e in ScoreEvent.query.filter(ScoreEvent.match_id.in_(matches), ScoreEvent.student_id.in_(selected_ids)).all():
         points[e.student_id] += e.points_delta
+        ledger[(e.student_id, e.match_id)].append({'reason': e.reason, 'points': e.points_delta})
     for h in RatingHistory.query.filter(RatingHistory.match_id.in_(matches), RatingHistory.user_id.in_(selected_ids)).all():
         ratings[h.user_id] += h.new_rating - h.old_rating
+        rating_changes[(h.user_id, h.match_id)] = {'before': h.old_rating, 'after': h.new_rating}
     rows = []
     for member, user in members:
         tasks = []
@@ -101,6 +112,11 @@ def battle_report(battle, *, user_id=None, detail=False):
             if detail:
                 row.update({'statement_md': task.get('statement_md', ''), 'difficulty': task.get('difficulty'),
                             'public_tests': task.get('public_tests', []),
+                            'score_rounds': [{'match_id': str(p.match_id), 'number': round_numbers[(user.id, p.match_id)], 'result': p.result_type,
+                                'is_final': matches[p.match_id].finished_at is not None,
+                                'accepted_at': _iso(p.accepted_at), 'progress': float(p.progress or 0),
+                                'entries': ledger[(user.id, p.match_id)],
+                                'rating': rating_changes.get((user.id, p.match_id))} for p in sorted(ps, key=lambda p: round_numbers[(user.id, p.match_id)])],
                             'submissions': [submission_out(s, matches[s.match_id], current_tasks.get(tid)) for s in ss]})
             tasks.append(row)
         assigned = sum(t['assigned'] for t in tasks)

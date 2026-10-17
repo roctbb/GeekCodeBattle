@@ -19,14 +19,14 @@ function render(props = {}) {
     },
     global: {
       stubs: {
-        Codemirror: { template: '<textarea aria-label="Код решения" />' },
+        SolutionEditor: { template: '<textarea aria-label="Код решения" />' },
       },
     },
   })
   return wrapper
 }
 describe('round workspace', () => {
-  it('starts focused on code and supports the task tab and split layout', async () => {
+  it('starts with the statement beside code and supports focus mode', async () => {
     render()
     expect(wrapper.find('.arena-solution').exists()).toBe(true)
     const tabs = wrapper.findAll('.workspace-tabs button')
@@ -34,8 +34,8 @@ describe('round workspace', () => {
     expect(wrapper.find('.arena-workspace').classes()).toContain('show-task')
     expect(wrapper.find('.markdown-text h2').text()).toBe('Условие')
     await wrapper.find('.split-toggle').trigger('click')
-    expect(wrapper.find('.arena-workspace').classes()).toContain('is-split')
-    expect(localStorage.getItem('gcb:layout')).toBe('split')
+    expect(wrapper.find('.arena-workspace').classes()).not.toContain('is-split')
+    expect(localStorage.getItem('gcb:layout')).toBe('focus')
   })
   it('blocks submission during checking, offline and for an empty draft', async () => {
     render({ isChecking: true })

@@ -1,7 +1,7 @@
 from __future__ import annotations
 
 import random
-from datetime import datetime, timezone
+from datetime import datetime, timezone, timedelta
 from flask import current_app
 from sqlalchemy import or_
 
@@ -56,6 +56,7 @@ def _find_active_participant_ids(battle_id, user_ids: list) -> set:
             Match.finished_at.is_(None),
             MatchParticipant.student_id.in_(user_ids),
             MatchParticipant.accepted_at.is_(None),
+            MatchParticipant.surrendered_at.is_(None),
             or_(MatchParticipant.result_type.is_(None), MatchParticipant.result_type != "loss"),
         )
         .distinct()
@@ -185,7 +186,8 @@ def _create_room_and_match(battle: Battle, group: list[QueueEntry]):
     if _find_active_participant_ids(battle.id, user_ids):
         return None
 
-    room = Room(battle_id=battle.id, status="active", started_at=datetime.now(timezone.utc))
+    intro = max(0, min(10, int(current_app.config.get("ROUND_INTRO_SECONDS", 3))))
+    room = Room(battle_id=battle.id, status="active", started_at=datetime.now(timezone.utc) + timedelta(seconds=intro))
     db.session.add(room)
     db.session.flush()
 

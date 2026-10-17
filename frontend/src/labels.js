@@ -15,7 +15,7 @@ export const verdictLabel = (value) =>
     accepted: 'Решение принято',
     wrong_answer: 'Есть ошибки',
     internal_error: 'Ошибка проверки',
-    surrendered: 'Раунд пропущен',
+    surrendered: 'Сдался',
   })[value] || 'Нет результата'
 export const resultLabel = (value) =>
   ({

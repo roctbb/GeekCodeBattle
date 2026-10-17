@@ -104,27 +104,6 @@ def create_app(config=None) -> Flask:
     app.register_blueprint(integrations_bp)
     app.register_blueprint(results_bp)
 
-    def _delayed_tick_battles(battle_ids):
-        delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
-        socketio.sleep(delay_seconds)
-        with app.app_context():
-            for battle_id in battle_ids or []:
-                battle = battles_service.get_battle_or_none(battle_id)
-                if not battle:
-                    continue
-                battles_service.tick_timeouts(battle)
-
-    def _enqueue_delayed_tick_battles(battle_ids):
-        if not battle_ids:
-            return
-        if app.config.get("CELERY_ENABLED", True):
-            from .celery_tasks import delayed_tick_battles_task
-
-            delay_seconds = int(app.config.get("DISCONNECT_GRACE_SECONDS", 300)) + 1
-            delayed_tick_battles_task.apply_async(args=[battle_ids], countdown=delay_seconds)
-            return
-        socketio.start_background_task(_delayed_tick_battles, battle_ids)
-
     @socketio.on("subscribe")
     def handle_subscribe(data):
         from .auth import current_user
@@ -189,10 +168,7 @@ def create_app(config=None) -> Flask:
         if next_count == 0:
             _socket_count_by_user.pop(user_key, None)
             presence_runtime.set_offline(user_key)
-            state = _mark_user_offline(user_key)
-            battle_ids = state.get("battle_ids") if state else []
-            if battle_ids:
-                _enqueue_delayed_tick_battles(battle_ids)
+            _mark_user_offline(user_key)
         else:
             _socket_count_by_user[user_key] = next_count
 

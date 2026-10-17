@@ -1,7 +1,8 @@
 <template>
   <section class="card shadow-sm border-0 login-card">
     <div class="card-body p-4">
-      <h2 class="h4 mb-2">Вход</h2>
+      <p class="hero-eyebrow">CodeBattle · Арена алгоритмов</p>
+      <h2 class="h4 mb-2">Вход на арену</h2>
 
       <template v-if="devLoginEnabled">
         <p class="text-muted mb-3">Тестовый вход (доступен только в dev-режиме).</p>

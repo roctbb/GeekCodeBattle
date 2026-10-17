@@ -5,6 +5,7 @@ from types import SimpleNamespace
 from ..extensions import db
 from ..models import Match, MatchParticipant, ScoreEvent, RatingHistory, User
 from .scoring_service import INSTANT_WIN_REASON, K_FACTOR, _as_utc, _expected, _pair_score, _points_for_result, _apply_streaks
+from .scoring_service import solve_after_surrender_bonus
 
 CORRECTION_REASON = "match_rejudge"
 
@@ -77,6 +78,8 @@ def replay_scores():
         if kind == 'points':
             state = states[item.student_id]
             delta, _ = _points_for_result(result, float(item.progress or 0), state)
+            if matches[item.match_id].finished_at is not None:
+                delta += solve_after_surrender_bonus(item, participants[item.match_id])
             desired[(item.match_id, item.student_id)] = delta
             state.season_points += delta
             _apply_streaks(state, result)

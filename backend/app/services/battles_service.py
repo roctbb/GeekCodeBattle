@@ -1,4 +1,4 @@
-from datetime import datetime, timezone, timedelta
+from datetime import datetime, timezone
 from flask import current_app
 
 from ..extensions import db
@@ -21,7 +21,7 @@ from ..models import (
 )
 from ..utils import as_uuid
 from .scoring_service import finalize_match
-from .scoring_service import try_finalize_after_submission, get_winner_info
+from .scoring_service import try_finalize_after_submission
 from . import rooms_service
 from . import realtime_service
 
@@ -209,6 +209,8 @@ def delete_finished_battle(battle):
         return False, "scoring_history_exists"
 
     if match_ids:
+        from ..models import CodeRun
+        db.session.query(CodeRun).filter(CodeRun.match_id.in_(match_ids)).delete(synchronize_session=False)
         db.session.query(Submission).filter(Submission.match_id.in_(match_ids)).delete(synchronize_session=False)
         db.session.query(MatchParticipant).filter(MatchParticipant.match_id.in_(match_ids)).delete(synchronize_session=False)
         db.session.query(ScoreEvent).filter(ScoreEvent.match_id.in_(match_ids)).delete(synchronize_session=False)
@@ -230,9 +232,6 @@ def delete_finished_battle(battle):
 def tick_timeouts(battle):
     if battle.status != "running":
         return 0
-    limit = timedelta(minutes=current_app.config.get("ROUND_DURATION_MINUTES", 20))
-    disconnect_grace = timedelta(seconds=int(current_app.config.get("DISCONNECT_GRACE_SECONDS", 300)))
-    now = datetime.now(timezone.utc)
     active_matches = (
         db.session.query(Match)
         .join(Room, Room.id == Match.room_id)
@@ -244,36 +243,10 @@ def tick_timeouts(battle):
     for match in active_matches:
         rooms_service.expire_stale_submissions(match.id, battle_id=battle.id)
 
-        participants = MatchParticipant.query.filter_by(match_id=match.id).all()
-        if participants and all(bool(p.is_disconnected) for p in participants):
-            last_disconnect_at = max(
-                (
-                    (p.disconnected_at.replace(tzinfo=timezone.utc) if p.disconnected_at and p.disconnected_at.tzinfo is None else p.disconnected_at)
-                    or now
-                )
-                for p in participants
-            )
-            if last_disconnect_at <= now - disconnect_grace:
-                finalize_match(match, finished_by="all_disconnected")
-                finalized_count += 1
-                finalized_match_ids.append((match.id, "all_disconnected"))
-                continue
-
-        winner, _, _ = get_winner_info(participants)
-        if winner is not None:
-            if try_finalize_after_submission(match):
-                db.session.refresh(match)
-                finalized_count += 1
-                finalized_match_ids.append((match.id, match.finished_by or "accepted"))
-            continue
-
-        match_created_at = match.created_at
-        if match_created_at is not None and match_created_at.tzinfo is None:
-            match_created_at = match_created_at.replace(tzinfo=timezone.utc)
-        if match_created_at is not None and match_created_at <= now - limit:
-            finalize_match(match, finished_by="timeout")
+        if try_finalize_after_submission(match):
+            db.session.refresh(match)
             finalized_count += 1
-            finalized_match_ids.append((match.id, "timeout"))
+            finalized_match_ids.append((match.id, match.finished_by or "accepted"))
 
     from . import realtime_service, matchmaker_service
     if finalized_match_ids:

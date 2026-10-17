@@ -1,0 +1,48 @@
+import { afterEach, beforeEach, expect, it, vi } from 'vitest'
+import { mount } from '@vue/test-utils'
+import { useBattleEvents } from './useBattleEvents'
+let wrapper, events, shown
+beforeEach(() => {
+  vi.useFakeTimers()
+  shown = vi.fn()
+  wrapper = mount({ setup() { events = useBattleEvents(shown); return {} }, template: '<div />' })
+})
+afterEach(() => { wrapper.unmount(); vi.useRealTimers() })
+it('merges acceptance, first solution and final result for the same match', async () => {
+  events.push({ kind: 'accepted', group: 'round:one', title: 'Принято' })
+  events.push({ kind: 'first', group: 'round:one', title: 'Первый' })
+  events.push({ kind: 'final', group: 'round:one', title: 'Победа' })
+  await vi.advanceTimersByTimeAsync(240)
+  expect(events.event.title).toBe('Победа')
+  expect(shown).toHaveBeenCalledTimes(1)
+  events.push({ kind: 'accepted', group: 'round:one', title: 'Опоздавший ответ' })
+  events.dismiss()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(events.event.visible).toBe(false)
+  expect(shown).toHaveBeenCalledTimes(1)
+})
+it('keeps a visible event stable and serves pending results by priority', async () => {
+  events.push({ kind: 'accepted', group: 'round:one', title: 'Принято' })
+  await vi.advanceTimersByTimeAsync(240)
+  events.push({ kind: 'leader', title: 'Лидер' })
+  events.push({ kind: 'first', group: 'round:one', title: 'Первый' })
+  events.push({ kind: 'final', group: 'round:one', title: 'Победа' })
+  expect(events.event.title).toBe('Принято')
+  await vi.advanceTimersByTimeAsync(1280)
+  expect(events.event.title).toBe('Победа')
+  events.dismiss()
+  await vi.advanceTimersByTimeAsync(180)
+  expect(events.event.title).toBe('Лидер')
+  expect(shown).toHaveBeenCalledTimes(3)
+})
+it('cancels pending celebrations and sounds on reset or unmount', async () => {
+  events.push({ kind: 'final', group: 'old', title: 'Старая победа' })
+  events.reset()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(events.event.visible).toBe(false)
+  expect(shown).not.toHaveBeenCalled()
+  events.push({ kind: 'leader', title: 'Лидер' })
+  wrapper.unmount()
+  await vi.advanceTimersByTimeAsync(1000)
+  expect(shown).not.toHaveBeenCalled()
+})
