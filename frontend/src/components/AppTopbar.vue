@@ -6,7 +6,7 @@
       </a>
       <div v-if="me" ref="account" class="account-menu" @keydown="onKeydown" @focusout="onFocusOut">
         <button ref="trigger" type="button" class="account-trigger" :aria-label="`Меню пользователя: ${displayName}`"
-          :aria-expanded="open" aria-controls="account-panel" :title="displayName" @click="toggle"
+          :aria-expanded="open" aria-haspopup="dialog" aria-controls="account-panel" :title="displayName" @click="toggle"
           @keydown.down.prevent="show(0)" @keydown.up.prevent="show(-1)">
           <span class="account-avatar" aria-hidden="true">
             <img v-if="avatarUrl && !avatarFailed" :src="avatarUrl" alt="" width="32" height="32" decoding="async" referrerpolicy="no-referrer" @error="avatarFailed = true" />
@@ -14,7 +14,7 @@
           </span>
           <span class="topbar-name">{{ displayName }}</span><AppIcon name="chevron-down" class="account-chevron" />
         </button>
-        <div v-if="open" id="account-panel" ref="panel" class="account-menu-panel" :aria-label="settingsOpen ? 'Настройки интерфейса' : 'Меню пользователя'">
+        <div v-if="open" id="account-panel" ref="panel" class="account-menu-panel" role="dialog" :aria-label="settingsOpen ? 'Настройки интерфейса' : 'Меню пользователя'">
           <template v-if="!settingsOpen">
             <div class="account-menu-heading"><strong>{{ displayName }}</strong><small>{{ isTeacher ? 'Преподаватель' : 'Участник' }}</small></div>
             <button type="button" :aria-current="isTeacher ? (teacherPage === 'battles' && !resultsActive ? 'page' : null) : (!resultsActive ? 'page' : null)" @click="navigate('go-battles')"><AppIcon name="bolt" />{{ isTeacher ? 'Батлы' : 'Мой батл' }}</button>
@@ -42,7 +42,7 @@ import AppIcon from './AppIcon.vue'
 import CodeBattleMark from './CodeBattleMark.vue'
 const props = defineProps({
   me: { type: Object, default: null }, isTeacher: Boolean, resultsActive: Boolean,
-  teacherPage: { type: String, default: 'battles' },
+  teacherPage: { type: String, default: 'battles' }, navigationKey: String,
 })
 const emit = defineEmits(['go-battles', 'go-packages', 'go-play', 'go-results', 'logout'])
 const account = ref(), trigger = ref(), panel = ref(), settingsBack = ref()
@@ -76,7 +76,7 @@ function onKeydown(event) {
   if (next !== undefined) { event.preventDefault(); available[next]?.focus() }
 }
 watch(avatarUrl, () => { avatarFailed.value = false })
-watch(() => [props.teacherPage, props.resultsActive, props.me?.id], () => close())
+watch(() => [props.navigationKey, props.teacherPage, props.resultsActive, props.me?.id], () => close())
 onMounted(() => document.addEventListener('pointerdown', outside))
 onUnmounted(() => document.removeEventListener('pointerdown', outside))
 </script>

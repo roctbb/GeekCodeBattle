@@ -239,3 +239,26 @@ it('does not replay historical celebrations and announces an observed round only
   mocks.handlers.connect();await flushPromises()
   expect(wrapper.find('.battle-event').exists()).toBe(false)
 })
+
+it('closes the profile panel when navigating within the same teacher section', async () => {
+  const teacher = { id:'teacher', role:'teacher', name:'Учитель' }
+  mocks.get.mockImplementation(async path => ({ data: {
+    '/auth/options': { dev_login_enabled:true, geekclass_enabled:false }, '/me':teacher,
+    '/battles': [{ id:'battle', title:'Батл', status:'draft' }], '/task-packages':[],
+    '/battles/battle/queue': { entries:[] }, '/battles/battle/leaderboard': { participants:[] },
+    '/battles/battle/tasks':[], '/battles/battle/task-packages':[],
+  }[path] }))
+  const router = createRouter({ history:createMemoryHistory(), routes:[
+    { path:'/battles', name:'battles', component:{ template:'<div />' } },
+    { path:'/battles/:battleId', name:'battle-details', component:{ template:'<div />' } },
+  ] })
+  await router.push('/battles/battle')
+  wrapper = mount(App, { global:{ plugins:[router], stubs:{ TeacherBattleDetailsView:true, TeacherBattleListView:true } } })
+  await flushPromises()
+  await vi.waitFor(() => expect(wrapper.find('teacher-battle-details-view-stub').exists()).toBe(true))
+  await wrapper.get('.account-trigger').trigger('click')
+  expect(wrapper.find('.account-menu-panel').exists()).toBe(true)
+  await router.push('/battles')
+  await flushPromises()
+  expect(wrapper.find('.account-menu-panel').exists()).toBe(false)
+})

@@ -5,6 +5,7 @@
       :is-teacher="isTeacher"
       :teacher-page="teacherPage"
       :results-active="isPersonalResults"
+      :navigation-key="route.fullPath"
       @go-results="router.push('/results')"
       @go-battles="goToBattlesPage"
       @go-packages="goToPackagesPage"
