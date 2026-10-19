@@ -244,8 +244,10 @@
                 </button>
               </div>
               <div class="small text-muted mb-2">
-                Пройдено: {{ Math.round(sub.progress * 100) }}%<span
-                  v-if="sub.visible_tests_total != null"
+                <span v-if="sub.tests_total != null && sub.tests_passed != null">
+                  Пройдено тестов: {{ sub.tests_passed }} из {{ sub.tests_total }} (включая скрытые)</span>
+                <span v-else>Пройдено: {{ Math.round(sub.progress * 100) }}%</span><span
+                  v-if="sub.tests_total == null && sub.visible_tests_total != null"
                 >
                   · Публичные тесты: {{ sub.visible_tests_passed ?? '—' }}/{{
                     sub.visible_tests_total

@@ -1,4 +1,5 @@
 """Visibility belongs to Battle; the checker still receives every test in order."""
+from .checker_feedback import ERROR_MESSAGES, submission_verdict
 
 
 def task_tests(task):
@@ -46,4 +47,5 @@ def hidden_test_feedback(submission):
         "accepted": "Все тесты пройдены.",
         "wrong_answer": "Не все тесты пройдены.",
         "internal_error": "Ошибка проверки решения.",
-    }.get(submission.verdict)
+        **ERROR_MESSAGES,
+    }.get(submission_verdict(submission))

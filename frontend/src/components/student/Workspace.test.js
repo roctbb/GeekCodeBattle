@@ -28,6 +28,31 @@ afterEach(() => {
   localStorage.clear()
 })
 
+it.each([
+  ['compilation_error', 'Ошибка компиляции'],
+  ['runtime_error', 'Ошибка времени выполнения'],
+  ['time_limit_exceeded', 'Превышен лимит времени'],
+  ['output_limit_exceeded', 'Превышен лимит вывода'],
+])('shows %s and the count of all tests when submitting', async (verdict, label) => {
+  wrapper = mount(StudentActiveRoomView, { props: { ...props, mySubmission: {
+    id: 'sub', verdict, tests_passed: 2, tests_total: 7, source_code: props.submitCode, language: 'python',
+  } }, global })
+  await wrapper.get('.send-button').trigger('click')
+  expect(wrapper.emitted('submit')).toHaveLength(1)
+  expect(wrapper.findAll('.console-tabs button')[2].attributes('aria-pressed')).toBe('true')
+  expect(wrapper.text()).toContain(label)
+  expect(wrapper.get('.submission-test-count').text()).toBe('Пройдено тестов: 2 из 7 (включая скрытые)')
+})
+
+it('does not invent a zero count for pending or unknown results', async () => {
+  wrapper = mount(StudentActiveRoomView, { props: { ...props, mySubmission: {
+    id: 'sub', verdict: 'queued', tests_passed: null, tests_total: null,
+  } }, global })
+  await wrapper.findAll('.console-tabs button')[2].trigger('click')
+  expect(wrapper.text()).toContain('Проверяется')
+  expect(wrapper.find('.submission-test-count').exists()).toBe(false)
+})
+
 it('runs custom input independently of scored submission and marks stale results', async () => {
   api.post.mockResolvedValue({
     data: {

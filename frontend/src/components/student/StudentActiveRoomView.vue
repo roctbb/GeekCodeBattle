@@ -336,6 +336,10 @@
                     : 'Решение ещё не отправлено'
                 }}
               </p>
+              <p v-if="mySubmission?.tests_total != null && mySubmission?.tests_passed != null"
+                class="submission-test-count">
+                Пройдено тестов: {{ mySubmission.tests_passed }} из {{ mySubmission.tests_total }} (включая скрытые)
+              </p>
               <pre
                 v-if="mySubmission?.checker_message"
                 class="checker-feedback"
@@ -360,6 +364,9 @@
               ><p v-if="staleRun" class="notice notice-warning small">
                 Результат относится к предыдущей версии кода или входных данных.
               </p>
+              <p v-if="runResult.error_type" class="text-danger">{{ verdictLabel(runResult.error_type) }}</p>
+              <p v-if="runResult.kind === 'examples' && runResult.tests_total != null && runResult.tests_passed != null"
+                class="practice-test-count">Пройдено примеров: {{ runResult.tests_passed }} из {{ runResult.tests_total }}</p>
               <pre v-if="runResult.message" class="checker-feedback">{{
                 runResult.message
               }}</pre>
@@ -564,8 +571,10 @@ function runCode() {
   })
 }
 function send() {
-  if (props.canSubmit && !props.isChecking && props.submitCode.trim())
+  if (props.canSubmit && !props.isChecking && props.submitCode.trim()) {
+    consoleTab.value = 'verdict'
     emit('submit')
+  }
 }
 function useExample(input) {
   customInput.value = input || ''

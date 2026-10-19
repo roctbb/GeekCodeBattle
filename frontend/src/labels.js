@@ -14,6 +14,10 @@ export const verdictLabel = (value) =>
     queued: 'Проверяется',
     accepted: 'Решение принято',
     wrong_answer: 'Есть ошибки',
+    compilation_error: 'Ошибка компиляции',
+    runtime_error: 'Ошибка времени выполнения',
+    time_limit_exceeded: 'Превышен лимит времени',
+    output_limit_exceeded: 'Превышен лимит вывода',
     internal_error: 'Ошибка проверки',
     surrendered: 'Сдался',
   })[value] || 'Нет результата'

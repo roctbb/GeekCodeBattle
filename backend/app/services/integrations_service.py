@@ -13,6 +13,8 @@ from ..utils import as_uuid
 from .scoring_service import try_finalize_after_submission, award_instant_winner_points
 from .matchmaker_service import run_matchmaking
 from .realtime_service import emit_submission_verdict, emit_round_finished, emit_leaderboard_updated, emit_match_found, emit_queue_updated
+from .checker_feedback import checker_verdict, checker_error_type, checker_test_counts, feedback_payload
+from .test_visibility import task_tests
 
 
 def _to_int_or_none(value):
@@ -81,6 +83,13 @@ def checker_feedback_raw(payload):
     """Keep structured feedback when the checker omits top-level details."""
     comment = payload.get("comment")
     details = payload.get("details")
+    if any(key in payload for key in ('tests_passed', 'tests_total', 'error_type')):
+        feedback = feedback_payload(comment)
+        if isinstance(details, list) and details:
+            feedback['details'] = details
+        feedback.update({key: payload[key] for key in (
+            'tests_passed', 'tests_total', 'error_type') if key in payload})
+        return json.dumps(feedback, ensure_ascii=False)
     if isinstance(details, list) and details:
         return json.dumps({"comment": comment, "details": details}, ensure_ascii=False)
     if isinstance(comment, (dict, list)):
@@ -110,17 +119,24 @@ def apply_checker_result(payload):
 
     submission.checker_status_raw = status
 
-    submission.checker_comment_raw = checker_feedback_raw(payload)
+    match = db.session.get(Match, submission.match_id)
+    from ..models import Task
+    task = db.session.get(Task, match.task_id) if match else None
+    tests_passed, tests_total = checker_test_counts(
+        payload, check_type=task.check_type if task else None, tests=task_tests(task))
+    submission.checker_comment_raw = checker_feedback_raw({
+        **payload, 'tests_passed': tests_passed, 'tests_total': tests_total,
+        'error_type': checker_error_type(payload),
+    })
 
     submission.callback_received_at = db.func.now()
-    submission.verdict = "accepted" if status == "success" and progress >= 1.0 else ("wrong_answer" if status == "success" else "internal_error")
+    submission.verdict = checker_verdict(payload, progress)
     submission.progress_value = progress
     submission.visible_tests_passed = _to_int_or_none(payload.get("visible_tests_passed"))
     submission.visible_tests_total = _to_int_or_none(payload.get("visible_tests_total"))
     submission.hidden_tests_passed = _to_int_or_none(payload.get("hidden_tests_passed"))
     submission.hidden_tests_total = _to_int_or_none(payload.get("hidden_tests_total"))
 
-    match = db.session.get(Match, submission.match_id)
     room = db.session.get(Room, match.room_id) if match else None
     match_is_active = bool(match and match.finished_at is None)
     participant = None
@@ -142,6 +158,8 @@ def apply_checker_result(payload):
         battle_id=(room.battle_id if room else None),
         visible_tests_passed=submission.visible_tests_passed,
         visible_tests_total=submission.visible_tests_total,
+        tests_passed=tests_passed,
+        tests_total=tests_total,
     )
 
     if match_is_active:

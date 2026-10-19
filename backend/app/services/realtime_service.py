@@ -37,7 +37,8 @@ def emit_submission_queued(match_id, student_id, battle_id=None):
     socketio.emit('submission_queued', payload, to=rooms)
 
 
-def emit_submission_verdict(match_id, student_id, verdict, progress, battle_id=None, visible_tests_passed=None, visible_tests_total=None):
+def emit_submission_verdict(match_id, student_id, verdict, progress, battle_id=None, visible_tests_passed=None, visible_tests_total=None,
+                            tests_passed=None, tests_total=None):
     payload = {
         'match_id': str(match_id),
         'student_id': str(student_id),
@@ -45,6 +46,8 @@ def emit_submission_verdict(match_id, student_id, verdict, progress, battle_id=N
         'progress': progress,
         'visible_tests_passed': visible_tests_passed,
         'visible_tests_total': visible_tests_total,
+        'tests_passed': tests_passed,
+        'tests_total': tests_total,
     }
     rooms = [f'match:{match_id}']
     if battle_id:

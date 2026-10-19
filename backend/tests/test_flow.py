@@ -330,7 +330,7 @@ def test_room_my_submission_contains_checker_error_message(app):
     room_after = s1.get(f'/api/v1/rooms/{room_id}')
     assert room_after.status_code == 200
     my_submission = room_after.get_json()['my_submission']
-    assert my_submission['verdict'] == 'internal_error'
+    assert my_submission['verdict'] == 'compilation_error'
     assert my_submission['checker_status'] == 'error'
     assert 'Compilation error' in (my_submission['checker_message'] or '')
 

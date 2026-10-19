@@ -27,6 +27,21 @@ it('requires an invite and exposes an actionable error before successful admissi
 })
 
 const data = {battle:{id:'battle',title:'Батл',status:'finished'},summary:{participants:1,tasks:2,solved:1,attempts:2,pending:0},tasks:[{id:'one',title:'Сумма'},{id:'two',title:'Цикл'}],students:[{user_id:'masha',name:'Маша',place:1,points:140,rating_delta:12,assigned:1,solved:1,unsolved:0,not_assigned:1,attempts:2,pending:0,tasks:[{task_id:'one',title:'Сумма',state:'solved',assigned:true,attempts:2,statement_md:'**Сложите** числа',difficulty:'easy',submissions:[{id:'ok',source_code:'print(3)',language:'python',verdict:'accepted',progress:1},{id:'wrong',source_code:'<script>alert(1)</script>',language:'python',verdict:'wrong_answer',progress:0}]},{task_id:'two',title:'Цикл',state:'not_assigned',assigned:false,attempts:0,statement_md:'Цикл',submissions:[]}]}]}
+
+it('shows the error category and total count including hidden tests in personal history', async () => {
+  const report = structuredClone(data)
+  report.students[0].tasks[0].submissions = [{
+    id: 'limited', source_code: 'while True: pass', language: 'python', verdict: 'time_limit_exceeded',
+    progress: 2 / 7, tests_passed: 2, tests_total: 7, visible_tests_passed: 1, visible_tests_total: 1,
+    comment: 'Превышен лимит времени.',
+  }]
+  mocks.get.mockResolvedValue({ data: report })
+  wrapper = mount(BattleResultDetail, { props: { path: '/me/results/battle', taskId: 'one' }, global })
+  await flushPromises()
+  expect(wrapper.text()).toContain('Превышен лимит времени')
+  expect(wrapper.text()).toContain('Пройдено тестов: 2 из 7 (включая скрытые)')
+  expect(wrapper.text()).not.toContain('Публичные тесты: 1/1')
+})
 it('opens a specific student and task from the teacher matrix', async () => {
   mocks.get.mockResolvedValue({data})
   wrapper=mount(TeacherBattleStatistics,{props:{battleId:'battle'},global})

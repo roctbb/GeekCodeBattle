@@ -15,6 +15,8 @@ from ..services.scoring_service import (get_winner_info, try_finalize_after_subm
     surrender_available_at, return_to_lobby, SURRENDER_SOLVE_BONUS)
 from ..services.matchmaker_service import run_matchmaking
 from ..services.test_visibility import task_tests, is_hidden, has_hidden_tests, hidden_test_feedback
+from ..services.checker_feedback import (submission_test_counts, submission_verdict, feedback_payload,
+                                         diagnostic_text, checker_error_type)
 from ..extensions import db
 from ..models import CodeRun, Match
 from ..services.rooms_service import _as_utc
@@ -138,6 +140,9 @@ def _extract_checker_feedback_text(latest_submission):
     raw = latest_submission.checker_comment_raw
     if raw is None:
         return None
+    diagnostics = diagnostic_text(feedback_payload(raw))
+    if diagnostics:
+        return diagnostics
 
     def _as_text(value):
         if value is None:
@@ -179,6 +184,8 @@ def _extract_checker_feedback_text(latest_submission):
             text = _as_text(parsed.get(key))
             if text:
                 return text[:4000]
+        if set(parsed) <= {'comment', 'details', 'tests_passed', 'tests_total', 'error_type'}:
+            return None
         text = _as_text(parsed)
         return text[:4000] if text else None
 
@@ -313,10 +320,11 @@ def get_room(room_id):
             "round": round_info,
             "my_submission": {
                 "id": str(latest_submission.id),
-                "verdict": latest_submission.verdict,
+                "verdict": submission_verdict(latest_submission),
                 "created_at": _as_utc(latest_submission.created_at).isoformat() if latest_submission.created_at else None,
                 "checker_status": latest_submission.checker_status_raw,
                 "checker_message": checker_feedback_text,
+                **submission_test_counts(latest_submission),
                 "source_code": latest_submission.source_code,
                 "language": latest_submission.language,
             }
@@ -446,12 +454,16 @@ def _run_out(run):
     feedback = SimpleNamespace(checker_comment_raw=run.checker_comment_raw,
                                visible_tests_total=None, visible_tests_passed=None)
     results = _extract_visible_test_results(feedback, run.tests)
-    message = _practice_message(run.checker_comment_raw)
+    payload = feedback_payload(run.checker_comment_raw)
+    message = diagnostic_text(payload) or _practice_message(run.checker_comment_raw)
+    error_type = checker_error_type(payload)
     if not message and run.verdict == "internal_error":
         message = "Не удалось выполнить код. Повторите запуск."
     return {"id": str(run.id), "kind": run.kind, "verdict": run.verdict, "created_at": _as_utc(run.created_at).isoformat(), "timeout_seconds": _practice_timeout(),
             "language": run.language, "source_code": run.source_code,
             "message": message,
+            "error_type": error_type,
+            **(submission_test_counts(run) if run.kind == 'examples' else {}),
             "tests": [{"input": t["input"], "expected": t.get("expected") if run.kind == "examples" else None,
                        "actual": results[i].get("actual") if i < len(results) else None,
                        "passed": results[i].get("passed") if i < len(results) and run.kind == "examples" else None}

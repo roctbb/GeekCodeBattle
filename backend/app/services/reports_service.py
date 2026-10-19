@@ -9,6 +9,7 @@ from ..models import (Battle, BattleMember, BattleTask, Task, Match, MatchPartic
                       Room, Submission, User, ScoreEvent, RatingHistory)
 from ..api.serializers import battle_out
 from .test_visibility import task_tests, is_hidden, public_test, public_snapshot, has_hidden_tests, hidden_test_feedback
+from .checker_feedback import submission_test_counts, submission_verdict, feedback_payload, diagnostic_text
 
 
 def public_task(task):
@@ -35,10 +36,13 @@ def submission_out(sub, match, task=None):
             comment = None
     if has_hidden_tests(task):
         comment = hidden_test_feedback(sub)
+    else:
+        comment = diagnostic_text(feedback_payload(sub.checker_comment_raw)) or comment
     return {'id': str(sub.id), 'match_id': str(sub.match_id), 'created_at': _iso(sub.created_at),
-            'language': sub.language, 'source_code': sub.source_code, 'verdict': sub.verdict,
+            'language': sub.language, 'source_code': sub.source_code, 'verdict': submission_verdict(sub),
             'progress': float(sub.progress_value or 0), 'comment': (comment or '')[:4000],
             'visible_tests_passed': sub.visible_tests_passed, 'visible_tests_total': sub.visible_tests_total,
+            **submission_test_counts(sub),
             'round_finished_at': _iso(match.finished_at),
             'after_round': bool(match.finished_at and sub.created_at > match.finished_at)}
 

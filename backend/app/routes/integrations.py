@@ -5,6 +5,7 @@ from ..services import integrations_service
 from ..extensions import db
 from ..models import CodeRun
 from ..utils import as_uuid
+from ..services.checker_feedback import checker_error_type, checker_test_counts
 
 
 integrations_bp = Blueprint("integrations", __name__, url_prefix="/api/v1/integrations")
@@ -29,7 +30,13 @@ def code_run_callback():
         return ok({"duplicate": True})
     run.checker_status_raw = str(payload.get("status", "error"))
     run.verdict = "completed" if run.checker_status_raw == "success" else "internal_error"
-    run.checker_comment_raw = integrations_service.checker_feedback_raw(payload)
+    error_type = checker_error_type(payload)
+    if error_type:
+        run.verdict = error_type
+    tests_passed, tests_total = checker_test_counts(payload, check_type='tests', tests=run.tests)
+    run.checker_comment_raw = integrations_service.checker_feedback_raw({
+        **payload, 'error_type': error_type, 'tests_passed': tests_passed, 'tests_total': tests_total,
+    })
     db.session.commit()
     return ok()
 
