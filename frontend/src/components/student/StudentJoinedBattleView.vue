@@ -341,40 +341,41 @@ function shortId(id) {
 }
 
 .matchmaking-status {
-  border: 1px solid #dbe5f9;
+  border: 1px solid var(--app-border);
   border-radius: 12px;
-  background: #f8fbff;
+  background: var(--app-card);
+  color: var(--app-ink);
   padding: 0.78rem 0.9rem;
 }
 
 .matchmaking-status.mm-idle {
-  background: #f5f7fb;
-  border-color: #d9deea;
+  background: var(--app-surface-alt);
+  border-color: var(--app-border);
 }
 
 .matchmaking-status.mm-search {
-  background: #eef8ff;
-  border-color: #c9e6ff;
+  background: color-mix(in srgb, var(--app-accent) 10%, var(--app-card));
+  border-color: color-mix(in srgb, var(--app-accent) 45%, var(--app-border));
 }
 
 .matchmaking-status.mm-balance {
-  background: #fff8eb;
-  border-color: #ffe1b0;
+  background: var(--app-warning-bg);
+  border-color: var(--app-warning-border);
 }
 
 .matchmaking-status.mm-launch {
-  background: #edf9f0;
-  border-color: #c7ebd0;
+  background: var(--app-success-bg);
+  border-color: var(--app-success-border);
 }
 
 .matchmaking-status.mm-active {
-  background: #edf3ff;
-  border-color: #ccdcff;
+  background: var(--app-brand-soft);
+  border-color: var(--app-brand-border);
 }
 
 .matchmaking-status.mm-paused {
-  background: #f3f4f6;
-  border-color: #d4d6db;
+  background: var(--app-surface-muted);
+  border-color: var(--app-border);
 }
 
 .bonus-rules {
