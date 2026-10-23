@@ -569,7 +569,8 @@ def test_winner_can_be_matched_before_previous_match_finishes(app):
     assert second_room_s1 != first_room_id
 
 
-def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(app):
+def test_submission_checker_timeout_recovers_matching_late_callback(app):
+    app.config['SUBMISSION_CHECK_TIMEOUT_SECONDS'] = 180
     teacher = app.test_client()
     login_dev(teacher, 'teacher-timeout', 'Teacher', 'teacher')
     battle_id = create_task_and_battle(teacher)
@@ -616,6 +617,7 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
 
     callback_r = teacher.post('/api/v1/integrations/geekpaste/callback', json={
         'callback_id': submission_id,
+        'job_id': submission_id,
         'status': 'success',
         'points': 1,
         'max_points': 1,
@@ -626,7 +628,7 @@ def test_submission_checker_timeout_marks_unfulfilled_and_ignores_late_callback(
 
     submission_after_callback = teacher.get(f'/api/v1/battles/{battle_id}/submissions/{submission_id}')
     assert submission_after_callback.status_code == 200
-    assert submission_after_callback.get_json()['verdict'] == 'internal_error'
+    assert submission_after_callback.get_json()['verdict'] == 'accepted'
 
 
 def test_cannot_resubmit_while_previous_submission_is_queued(app):

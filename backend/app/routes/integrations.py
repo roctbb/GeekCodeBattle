@@ -26,7 +26,7 @@ def code_run_callback():
     run = CodeRun.query.filter_by(id=run_id).with_for_update().populate_existing().first()
     if not run:
         return fail("Run not found", 404)
-    if run.verdict != "queued":
+    if not integrations_service.callback_can_update(run, payload):
         return ok({"duplicate": True})
     run.checker_status_raw = str(payload.get("status", "error"))
     run.verdict = "completed" if run.checker_status_raw == "success" else "internal_error"

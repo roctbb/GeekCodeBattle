@@ -97,6 +97,31 @@ def checker_feedback_raw(payload):
     return str(comment) if comment is not None else None
 
 
+def callback_can_update(submission, payload):
+    """Only a matching job can recover a timeout; final verdicts stay immutable."""
+    callback_id = payload.get('callback_id')
+    late_timeout = submission.verdict == 'internal_error' and submission.checker_status_raw == 'timeout'
+    job_id = payload.get('job_id')
+    if ((submission.external_run_id and job_id and job_id != submission.external_run_id)
+            or (late_timeout and (not submission.external_run_id or job_id != submission.external_run_id))):
+        current_app.logger.warning(
+            'checker_callback_job_mismatch callback_id=%s job_id=%s expected_job_id=%s',
+            callback_id, job_id, submission.external_run_id,
+        )
+        return False
+    if submission.verdict != "queued" and not late_timeout:
+        current_app.logger.info(
+            "checker_callback_ignored callback_id=%s current_verdict=%s",
+            callback_id,
+            submission.verdict,
+        )
+        return False
+
+    if late_timeout:
+        current_app.logger.info('checker_callback_after_timeout callback_id=%s job_id=%s', callback_id, job_id)
+    return True
+
+
 def apply_checker_result(payload):
     from .scoring_service import lock_scoring
     lock_scoring()
@@ -104,12 +129,7 @@ def apply_checker_result(payload):
     submission = Submission.query.filter_by(id=as_uuid(callback_id)).with_for_update().populate_existing().first()
     if not submission:
         return None
-    if submission.verdict != "queued":
-        current_app.logger.info(
-            "checker_callback_ignored callback_id=%s current_verdict=%s",
-            callback_id,
-            submission.verdict,
-        )
+    if not callback_can_update(submission, payload):
         return submission
 
     status = payload.get("status", "error")

@@ -123,7 +123,7 @@ def _as_utc(dt):
 
 
 def expire_stale_submissions(match_id, battle_id=None):
-    timeout_seconds = int(current_app.config.get("SUBMISSION_CHECK_TIMEOUT_SECONDS", 180) or 0)
+    timeout_seconds = int(current_app.config.get("SUBMISSION_CHECK_TIMEOUT_SECONDS", 600) or 0)
     if timeout_seconds <= 0:
         return 0
 

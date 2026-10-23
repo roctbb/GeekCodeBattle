@@ -104,7 +104,8 @@ def test_run_limits_timeout_ownership_and_transport_error(app, monkeypatch):
     assert player.post(path, json={**code, 'source_code': 'x' * 262145}).status_code == 413
     run = player.post(path, json=code).get_json()
     with app.app_context():
-        db.session.get(CodeRun, UUID(run['id'])).created_at = datetime.now(timezone.utc) - timedelta(minutes=5)
+        db.session.get(CodeRun, UUID(run['id'])).created_at = datetime.now(timezone.utc) - timedelta(
+            seconds=app.config['SUBMISSION_CHECK_TIMEOUT_SECONDS'] + 1)
         db.session.commit()
     result = player.get(f"{path}/{run['id']}").get_json()
     assert result['verdict'] == 'internal_error'

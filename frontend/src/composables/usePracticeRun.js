@@ -39,7 +39,7 @@ export function usePracticeRun(roomId) {
         if (epoch !== version) return
         accept(data)
         if (data.verdict === 'queued') {
-          if (Date.now() - started > ((Number(data.timeout_seconds) || 180) + 10) * 1000) {
+          if (Date.now() - started > ((Number(data.timeout_seconds) || 600) + 10) * 1000) {
             error.value = 'Проверка задерживается. Повторите запуск.'
             running.value = false
             return

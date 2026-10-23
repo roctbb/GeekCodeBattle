@@ -424,7 +424,7 @@ def submit(room_id):
 
 
 def _practice_timeout():
-    return max(1, int(current_app.config.get("SUBMISSION_CHECK_TIMEOUT_SECONDS", 180) or 180))
+    return max(1, int(current_app.config.get("SUBMISSION_CHECK_TIMEOUT_SECONDS", 600) or 600))
 
 
 def _practice_message(raw, depth=0):
@@ -517,6 +517,7 @@ def create_run(room_id):
         if (now - _as_utc(latest.created_at)).total_seconds() < _practice_timeout():
             return fail("Previous run is still being checked", 409, details={"run_id": str(latest.id)})
         latest.verdict = "internal_error"
+        latest.checker_status_raw = "timeout"
         latest.checker_comment_raw = "Проверяющая система не ответила. Повторите запуск."
     if runs.count() >= 100:
         return fail("Practice limit reached: 100 runs per round", 429)
@@ -553,6 +554,7 @@ def get_run(room_id, run_id):
         return fail("Not found", 404)
     if run.verdict == "queued" and (datetime.now(timezone.utc) - _as_utc(run.created_at)).total_seconds() >= _practice_timeout():
         run.verdict = "internal_error"
+        run.checker_status_raw = "timeout"
         run.checker_comment_raw = "Проверяющая система не ответила. Повторите запуск."
         db.session.commit()
     return ok(_run_out(run))
