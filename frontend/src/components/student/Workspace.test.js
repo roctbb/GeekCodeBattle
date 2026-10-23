@@ -227,6 +227,21 @@ it('counts elapsed time and unlocks surrender after ten server minutes without r
   expect(wrapper.text()).not.toContain('До конца раунда')
 })
 
+it('unlocks surrender immediately when the opponent solves before ten minutes', async () => {
+  vi.useFakeTimers()
+  vi.setSystemTime(new Date('2026-10-23T12:01:00Z'))
+  wrapper = mount(StudentActiveRoomView, { props: { ...props, round: {
+    is_active: true, started_at: '2026-10-23T12:00:00Z', server_now: '2026-10-23T12:01:00Z',
+    surrender_available_at: '2026-10-23T12:10:00Z', can_surrender: false,
+  }, participants: [{ student_id: 'me' }, { student_id: 'opponent' }] }, global })
+  expect(wrapper.get('.surrender-button').attributes('disabled')).toBeDefined()
+  await wrapper.setProps({ participants: [{ student_id: 'me' }, { student_id: 'opponent', accepted_at: '2026-10-23T12:00:59Z' }] })
+  expect(wrapper.get('.surrender-button').text()).toBe('Сдаться')
+  expect(wrapper.get('.surrender-button').attributes('disabled')).toBeUndefined()
+  await wrapper.get('.surrender-button').trigger('click')
+  expect(wrapper.emitted('surrender')).toHaveLength(1)
+})
+
 it('shows surrender and the solve bonus while keeping the editor available', async () => {
   wrapper = mount(StudentActiveRoomView, { props: { ...props, participants: [
     { student_id: 'me', name: 'Я' }, { student_id: 'other', name: 'Соперник', surrendered_at: '2026-10-17T12:10:00Z' },

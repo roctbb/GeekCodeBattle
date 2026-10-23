@@ -272,7 +272,7 @@ def get_room(room_id):
     active = bool(match and match.finished_at is None)
     preparing = bool(active and room.started_at and _as_utc(room.started_at) > now)
     me_row = next((p for p, _ in participants if str(p.student_id) == str(session["user_id"])), None)
-    available_at = surrender_available_at(room)
+    available_at = surrender_available_at(room, [p for p, _ in participants])
     round_info = {
         "started_at": _as_utc(room.started_at).isoformat() if room.started_at else None,
         "server_now": now.isoformat(),
@@ -579,7 +579,7 @@ def surrender(room_id):
         return ok({"status": "already_surrendered"})
     if me.accepted_at is not None:
         return fail("Accepted participant cannot surrender", 409)
-    available_at = surrender_available_at(room)
+    available_at = surrender_available_at(room, rooms_service.list_match_participants(match.id))
     now = datetime.now(timezone.utc)
     if available_at is None or now < available_at:
         return fail("Surrender is available after 10 minutes", 409)

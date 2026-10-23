@@ -55,6 +55,24 @@ def test_surrender_unlocks_at_ten_minutes_without_a_winner_and_releases_player(a
         assert ScoreEvent.query.count() == 0  # Surrender alone never awards the opponent a win.
 
 
+def test_opponent_can_surrender_immediately_after_a_winner_appears(app):
+    from app.extensions import db
+    from app.models import Match
+    teacher, battle, players, room = setup_room(app)
+    path = f"/api/v1/rooms/{room['room_id']}"
+    loser = players[1][0]
+    assert loser.post(path + '/surrender').status_code == 409
+    accept(teacher, players[0][0], room)
+    state = loser.get(path).get_json()
+    assert state['round']['can_surrender'] is True
+    assert datetime.fromisoformat(state['round']['surrender_available_at']) <= datetime.fromisoformat(state['round']['server_now'])
+    assert players[0][0].post(path + '/surrender').status_code == 409
+    assert loser.post(path + '/surrender').status_code == 200
+    assert loser.get('/api/v1/me/state').get_json()['room_id'] is None
+    with app.app_context():
+        assert db.session.get(Match, UUID(room['match_id'])).finished_at is not None
+
+
 def test_solving_after_surrender_awards_one_bonus_and_replay_preserves_it(app):
     from app.extensions import db
     from app.models import Match, User, ScoreEvent

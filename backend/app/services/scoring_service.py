@@ -7,9 +7,9 @@ from sqlalchemy import text
 
 from ..extensions import db
 from ..models import Match, MatchParticipant, Room, User, ScoreEvent, RatingHistory, QueueEntry
+from .streaks import battle_streaks, apply_streaks as _apply_streaks, INSTANT_WIN_REASON
 
 K_FACTOR = 24
-INSTANT_WIN_REASON = "match_instant_win"
 SURRENDER_BONUS_REASON = "match_surrender_solve_bonus"
 SURRENDER_AFTER_SECONDS = 10 * 60
 SURRENDER_SOLVE_BONUS = 20
@@ -75,20 +75,14 @@ def _points_for_result(result_type: str, progress: float, user: User) -> tuple[i
     return base + partial + bonus, bonus
 
 
-def _apply_streaks(user: User, result_type: str):
-    if result_type == "win":
-        user.win_streak += 1
-        user.loss_streak = 0
-    elif result_type == "loss":
-        user.loss_streak += 1
-        user.win_streak = 0
-    elif result_type == "draw":
-        user.win_streak = 0
-        user.loss_streak = 0
-
-
-def surrender_available_at(room: Room):
-    return _as_utc(room.started_at) + timedelta(seconds=SURRENDER_AFTER_SECONDS) if room.started_at else None
+def surrender_available_at(room: Room, participants=()):
+    if not room.started_at:
+        return None
+    started = _as_utc(room.started_at)
+    deadline = started + timedelta(seconds=SURRENDER_AFTER_SECONDS)
+    accepted = [_as_utc(p.accepted_at) for p in participants
+                if p.accepted_at is not None and p.surrendered_at is None]
+    return max(started, min(deadline, min(accepted))) if accepted else deadline
 
 
 def solve_after_surrender_bonus(participant, participants):
@@ -254,6 +248,9 @@ def award_instant_winner_points(match: Match, student_id) -> int:
         return 0
 
     progress = float(winner.progress or 0)
+    room = db.session.get(Room, locked_match.room_id)
+    streak = battle_streaks(room.battle_id, [user.id])[user.id]
+    user.win_streak, user.loss_streak = streak.win_streak, streak.loss_streak
     points_delta, _ = _points_for_result("win", progress, user)
     user.season_points = max(0, user.season_points + points_delta)
     _apply_streaks(user, "win")
@@ -387,6 +384,8 @@ def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) 
         )
     }
 
+    room = db.session.get(Room, locked_match.room_id)
+    streaks = battle_streaks(room.battle_id, user_ids)
     for p in participants:
         user = users[p.student_id]
         if user is None:
@@ -400,6 +399,8 @@ def finalize_match(match: Match, finished_by: str = "accepted", *, commit=True) 
             points_delta = 0
         else:
             progress = float(p.progress or 0)
+            streak = streaks[p.student_id]
+            user.win_streak, user.loss_streak = streak.win_streak, streak.loss_streak
             points_delta, _ = _points_for_result(p.result_type or "no_result", progress, user)
             user.season_points = max(0, user.season_points + points_delta)
             _apply_streaks(user, p.result_type or "no_result")

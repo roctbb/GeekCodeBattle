@@ -223,6 +223,7 @@
 import AppIcon from './components/AppIcon.vue'
 import { computed, defineAsyncComponent, onMounted, onUnmounted, provide, reactive, ref, watch } from 'vue'
 import { resultLabel, verdictLabel } from './labels'
+import { defaultSourceCode } from './solutionTemplates'
 import api from './api'
 import { io } from 'socket.io-client'
 import { useRoute, useRouter } from 'vue-router'
@@ -671,7 +672,7 @@ function normalizeDraft(draft) {
     if (typeof draft.drafts?.[lang] === 'string') drafts[lang] = draft.drafts[lang]
   }
   const source_code = typeof draft.source_code === 'string'
-    ? draft.source_code : drafts[language] ?? DEFAULT_ROOM_SOURCE_CODE
+    ? draft.source_code : drafts[language] ?? defaultSourceCode(language)
   drafts[language] = source_code
   return { language, source_code, drafts }
 }
@@ -714,8 +715,8 @@ function applyDraftForRoom(roomId) {
     return
   }
   const stored = readRoomDraft(roomId)
-  submitForm.source_code = stored?.source_code ?? DEFAULT_ROOM_SOURCE_CODE
   submitForm.language = stored?.language || 'python'
+  submitForm.source_code = stored?.source_code ?? defaultSourceCode(submitForm.language)
   draftStatus.value = stored ? 'Черновик восстановлен' : 'Автосохранение на устройстве'
   draftRoomId.value = String(roomId)
   canRestoreDraft.value = Boolean(stored?.backup)
@@ -733,7 +734,7 @@ function updateSubmitLanguage(language) {
   if (myRoom.room_id) writeRoomDraft(myRoom.room_id, submitForm.source_code)
   const stored = readRoomDraft(myRoom.room_id)
   submitForm.language = language
-  submitForm.source_code = stored?.drafts?.[language] ?? ''
+  submitForm.source_code = stored?.drafts?.[language] ?? defaultSourceCode(language)
   if (myRoom.room_id) writeRoomDraft(myRoom.room_id, submitForm.source_code)
 }
 

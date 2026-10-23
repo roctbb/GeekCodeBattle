@@ -2,6 +2,7 @@
 from ..extensions import db
 from ..models import BattleMember, User, Match, Room, MatchParticipant, ScoreEvent, RatingHistory
 from .rooms_service import _as_utc
+from .streaks import battle_streaks
 
 
 def battle_standings(battle_id, *, at=None):
@@ -19,9 +20,10 @@ def battle_standings(battle_id, *, at=None):
     if at is not None and ids:
         rewind = dict(db.session.query(RatingHistory.user_id, db.func.sum(RatingHistory.new_rating - RatingHistory.old_rating))
             .filter(RatingHistory.user_id.in_(ids), RatingHistory.created_at >= at).group_by(RatingHistory.user_id).all())
+    streaks = battle_streaks(battle_id, ids, at=at)
     rows = [{"user_id": str(user.id), "name": user.name, "rating": user.rating - int(rewind.get(user.id, 0)),
              "battle_points": int(points.get(user.id, 0)), "season_points": int(points.get(user.id, 0)),
-             "win_streak": user.win_streak, "loss_streak": user.loss_streak} for _, user in members]
+             "win_streak": streaks[user.id].win_streak, "loss_streak": streaks[user.id].loss_streak} for _, user in members]
     rows.sort(key=lambda row: (-row["battle_points"], -row["rating"], row["name"], row["user_id"]))
     for place, row in enumerate(rows, 1):
         row["place"] = place

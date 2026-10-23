@@ -138,11 +138,15 @@ h3,
   color: var(--app-brand);
 }
 .app-shell .container.py-4 {
-  max-width: 1280px;
+  max-width: 1600px;
+  padding-inline: clamp(16px, 2vw, 40px);
 }
-.app-shell .arena-container {
-  max-width: 1920px;
+.app-shell .container.py-4.arena-container {
+  max-width: none;
   padding-top: 20px !important;
+}
+.app-shell.scene-arena .app-topbar > .topbar-layout {
+  max-width: none;
 }
 .app-shell .arena-container:has(.is-fullscreen) {
   z-index: 1050;

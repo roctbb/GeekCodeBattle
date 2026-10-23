@@ -149,4 +149,11 @@ def dev_login():
 def my_state():
     from ..services.player_state import player_state
     user = current_user()
-    return ok({"me": user_out(user), **player_state(user)})
+    from ..services.streaks import battle_streaks
+    snapshot = player_state(user)
+    me = user_out(user)
+    me['win_streak'] = me['loss_streak'] = 0
+    if snapshot['battle_id']:
+        streak = battle_streaks(snapshot['battle_id'], [user.id])[user.id]
+        me.update(win_streak=streak.win_streak, loss_streak=streak.loss_streak)
+    return ok({"me": me, **snapshot})

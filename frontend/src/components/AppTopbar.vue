@@ -82,7 +82,7 @@ onUnmounted(() => document.removeEventListener('pointerdown', outside))
 </script>
 
 <style scoped>
-.app-topbar > .topbar-layout { display:flex; justify-content:space-between; align-items:center; gap:1.5rem; max-width:1280px; min-height:48px; }
+.app-topbar > .topbar-layout { display:flex; justify-content:space-between; align-items:center; gap:1.5rem; max-width:1600px; min-height:48px; padding-inline:clamp(16px,2vw,40px); }
 .app-brand { margin:0; font-size:1.125rem; letter-spacing:-.025em; flex-shrink:0; }
 .account-menu { position:relative; min-width:0; }
 .account-trigger { display:flex; align-items:center; gap:10px; min-height:44px; padding:5px 8px; border:1px solid transparent; border-radius:8px; background:transparent; color:var(--app-ink); }

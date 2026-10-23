@@ -20,9 +20,11 @@ vi.mock('socket.io-client', () => ({
   }),
 }))
 import App from './App.vue'
+import { CPP_TEMPLATE } from './solutionTemplates'
 let wrapper
-afterEach(() => {
+afterEach(async () => {
   wrapper?.unmount()
+  await vi.dynamicImportSettled()
   vi.clearAllMocks()
   localStorage.clear()
 })
@@ -37,12 +39,30 @@ it('saves separate language drafts and restores them after a language switch', a
   const editor=wrapper.findComponent({name:'StudentActiveRoomView'})
   editor.vm.$emit('update:submit-code','print(42)');await flushPromises()
   editor.vm.$emit('update:submit-language','cpp');await flushPromises()
-  expect(editor.attributes('submit-code')).toBe('')
+  expect(editor.attributes('submit-code')).toBe(CPP_TEMPLATE)
   editor.vm.$emit('update:submit-code','int main(){}');await flushPromises()
   editor.vm.$emit('update:submit-language','python');await flushPromises()
   expect(editor.attributes('submit-code')).toBe('print(42)')
   const draft=JSON.parse(localStorage.getItem('gcb:submit-draft:v1:draft-user:room'))
   expect(draft.drafts).toEqual({python:'print(42)',cpp:'int main(){}'})
+})
+
+it('preserves an intentionally empty C++ draft instead of replacing it with the template', async () => {
+  const me = { id: 'empty-cpp', role: 'student', name: 'Игрок' }
+  mocks.get.mockImplementation(async path => ({ data: {
+    '/auth/options': { dev_login_enabled: true }, '/me': me,
+    '/battles': [{ id: 'battle', title: 'Батл', status: 'running' }],
+    '/me/state': { me, room_id: 'room', match_id: 'match', battle_id: 'battle' },
+    '/rooms/room': { status: 'active', task: { id: 'task', title: 'Сумма' }, participants: [] },
+  }[path] }))
+  localStorage.setItem('gcb:submit-draft:v1:empty-cpp:room', JSON.stringify({ version: 3, language: 'cpp', source_code: '', drafts: { cpp: '' } }))
+  const router = createRouter({ history: createMemoryHistory(), routes: [{ path: '/', component: { template: '<div />' } }] })
+  await router.push('/')
+  wrapper = mount(App, { global: { plugins: [router], stubs: { StudentActiveRoomView: true } } })
+  await flushPromises()
+  const editor = wrapper.findComponent({ name: 'StudentActiveRoomView' })
+  expect(editor.attributes('submit-language')).toBe('cpp')
+  expect(editor.attributes('submit-code')).toBe('')
 })
 
 it('restores every language draft when undoing a submission restore', async () => {

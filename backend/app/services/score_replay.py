@@ -3,7 +3,7 @@ from collections import defaultdict
 from types import SimpleNamespace
 
 from ..extensions import db
-from ..models import Match, MatchParticipant, ScoreEvent, RatingHistory, User
+from ..models import Match, MatchParticipant, ScoreEvent, RatingHistory, User, Room
 from .scoring_service import INSTANT_WIN_REASON, K_FACTOR, _as_utc, _expected, _pair_score, _points_for_result, _apply_streaks
 from .scoring_service import solve_after_surrender_bonus
 
@@ -49,6 +49,8 @@ def replay_scores():
     }
     before = {str(uid): {k: getattr(u, k) for k in ('rating', 'season_points', 'win_streak', 'loss_streak')} for uid, u in users.items()}
     matches = {m.id: m for m in Match.query.filter(Match.id.in_({mid for mid, _ in totals})).all()}
+    battle_ids = dict(db.session.query(Room.id, Room.battle_id).filter(Room.id.in_({m.room_id for m in matches.values()})).all())
+    streaks = defaultdict(lambda: SimpleNamespace(win_streak=0, loss_streak=0))
     participants = defaultdict(list)
     for p in MatchParticipant.query.filter(MatchParticipant.match_id.in_(matches)).all():
         participants[p.match_id].append(p)
@@ -77,12 +79,14 @@ def replay_scores():
     for _, _, _, _, kind, item, result in sorted(actions, key=lambda a: a[:4]):
         if kind == 'points':
             state = states[item.student_id]
-            delta, _ = _points_for_result(result, float(item.progress or 0), state)
+            streak = streaks[(battle_ids[matches[item.match_id].room_id], item.student_id)]
+            delta, _ = _points_for_result(result, float(item.progress or 0), streak)
             if matches[item.match_id].finished_at is not None:
                 delta += solve_after_surrender_bonus(item, participants[item.match_id])
             desired[(item.match_id, item.student_id)] = delta
             state.season_points += delta
-            _apply_streaks(state, result)
+            _apply_streaks(streak, result)
+            state.win_streak, state.loss_streak = streak.win_streak, streak.loss_streak
             continue
         rows = participants[item.id]
         raw = defaultdict(float)

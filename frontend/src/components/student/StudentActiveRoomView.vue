@@ -79,7 +79,7 @@
       role="status"
     >
       <template v-if="opponentSurrendered">Соперник сдался. Решите задачу и получите ещё +{{ round?.surrender_solve_bonus ?? 20 }} очков. Время не ограничено.</template>
-      <template v-else>{{ leader.winner_name || 'Соперник' }} решил задачу первым. Дорешивайте в своём темпе и получайте очки за решение.</template>
+      <template v-else>{{ leader.winner_name || 'Соперник' }} решил задачу первым. Можно продолжить решение или сдаться сразу.</template>
     </div>
     <div class="workspace-toolbar">
       <div class="workspace-tabs" role="group" aria-label="Раздел раунда">
@@ -116,6 +116,7 @@
       :style="{
         '--task-width': settings.taskWidth + '%',
         '--console-height': settings.consoleHeight + 'px',
+        '--workspace-height': workspaceHeight == null ? undefined : workspaceHeight + 'px',
       }"
     >
       <section class="arena-task" aria-label="Условие задачи">
@@ -425,7 +426,7 @@
         <button
           class="btn btn-outline-secondary surrender-button"
           :disabled="!surrenderUnlocked || !canSubmit"
-          :title="surrenderUnlocked ? 'Завершить своё участие в раунде и вернуться в лобби' : 'Сдаться можно через 10 минут от начала раунда'"
+          :title="surrenderUnlocked ? 'Завершить своё участие в раунде и вернуться в лобби' : 'Сдаться можно через 10 минут или сразу после решения соперника'"
           @click="$emit('surrender')"
         >
           {{ surrenderUnlocked ? 'Сдаться' : `Сдаться через ${formatTime(surrenderRemaining)}` }}</button
@@ -487,6 +488,7 @@ const emit = defineEmits([
 ])
 const editor = ref(),
   workspace = ref(),
+  workspaceHeight = ref(null),
   tab = ref('code'),
   split = ref(true),
   fullscreen = ref(false),
@@ -645,13 +647,14 @@ function refreshRoundStart() {
 }
 watch([preparing, startsIn], refreshRoundStart)
 const opponentSurrendered = computed(() => props.participants.some(p => p.student_id !== props.meId && p.surrendered_at))
+const opponentSolved = computed(() => props.participants.some(p => p.student_id !== props.meId && p.accepted_at && !p.surrendered_at))
 const elapsed = computed(() => props.round?.started_at
   ? Math.max(0, Math.floor((now.value + offset.value - Date.parse(props.round.started_at)) / 1000)) : null)
 const surrenderRemaining = computed(() => props.round?.surrender_available_at
   ? Math.max(0, Math.ceil((Date.parse(props.round.surrender_available_at) - now.value - offset.value) / 1000)) : null)
 const surrenderUnlocked = computed(() => Boolean(props.round?.is_active &&
   !props.participants.some(p => p.student_id === props.meId && (p.accepted_at || p.surrendered_at)) &&
-  (props.round.can_surrender || surrenderRemaining.value === 0)))
+  (props.round.can_surrender || opponentSolved.value || surrenderRemaining.value === 0)))
 function formatTime(seconds) {
   if (seconds == null) return '—:—'
   const minutes = Math.floor(seconds / 60), rest = seconds % 60
@@ -694,8 +697,27 @@ function startResize(event, kind) {
 function escape(event) {
   if (event.key === 'Escape' && !event.defaultPrevented) fullscreen.value = false
 }
+let layoutObserver
+function fitWorkspace() {
+  if (!workspace.value || fullscreen.value || window.innerWidth <= 850) {
+    workspaceHeight.value = null
+    return
+  }
+  const top = workspace.value.getBoundingClientRect().top + window.scrollY
+  const actions = workspace.value.closest('.arena')?.querySelector('.submit-toolbar')
+  workspaceHeight.value = Math.max(430, Math.floor(window.innerHeight - top - (actions?.getBoundingClientRect().height || 0) - 24))
+}
+watch(workspace, element => {
+  layoutObserver?.disconnect()
+  if (element && typeof ResizeObserver !== 'undefined') {
+    layoutObserver = new ResizeObserver(fitWorkspace)
+    layoutObserver.observe(element.closest('main') || element.parentElement)
+  }
+  fitWorkspace()
+}, { flush: 'post' })
 let previousOverflow, previousFullscreenFocus
 watch(fullscreen, value => {
+  nextTick(fitWorkspace)
   if (value) {
     previousOverflow = document.body.style.overflow
     previousFullscreenFocus = document.activeElement
@@ -713,13 +735,17 @@ onMounted(() => {
     refreshRoundStart()
   }, 200)
   window.addEventListener('keydown', escape)
+  window.addEventListener('resize', fitWorkspace)
+  fitWorkspace()
   refreshRoundStart()
 })
 onUnmounted(() => {
   if (previousOverflow !== undefined) document.body.style.overflow = previousOverflow
   clearInterval(timer)
   cleanupDrag()
+  layoutObserver?.disconnect()
   window.removeEventListener('keydown', escape)
+  window.removeEventListener('resize', fitWorkspace)
 })
 </script>
 <style scoped>
@@ -799,7 +825,7 @@ onUnmounted(() => {
 .arena-workspace {
   display: grid;
   grid-template-columns: minmax(0, 1fr);
-  height: calc(100dvh - 300px);
+  height: var(--workspace-height, calc(100dvh - 300px));
   min-height: 430px;
   border: 1px solid var(--app-border);
   background: var(--app-card);
